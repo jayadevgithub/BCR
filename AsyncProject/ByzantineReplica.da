@@ -233,7 +233,8 @@ class Replica(process):
 					order_statement)
 				print("here")
 				if self.is_tail_replica is True:
-					send(('result_shuttle',result_shuttle,result),to=client_process)
+					prev_replica = get_prev_replica()
+					send(('cache_result_shuttle',result_shuttle,result),to=prev_replica)
 				else:
 					print("inside here")
 					next_replica = get_next_replica()
