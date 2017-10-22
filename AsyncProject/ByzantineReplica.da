@@ -1,0 +1,74 @@
+import sys
+import nacl.encoding
+import nacl.signing
+import nacl.hash
+import uuid
+from nacl.bindings.utils import sodium_memcmp
+
+class Replica(process):
+	#def decrypt_message(msg):
+
+
+	def setup(replica_set:set,replica_id:int):
+		self.client_info = {}
+		self.public_key = None
+		self.private_key =None
+		self.data_object = None
+		self.replica_id = None
+		self.mode =None
+		self.result_cache = {}
+		self.is_head_replica = False
+		self.is_hail_replica = False
+		self.replica_set = replica_set
+		self.history = None
+		self.current_slot_number = 0
+		self.result_cache = {}
+
+		if replica_id == 1:
+			isHead = True
+		elif replica_id == len(replica_set):
+			isTail = True
+
+	def is_registered_client(client_id):
+		if client_id in self.client_info :
+			return True
+		else:
+			return False
+
+	def check_in_result_cache():
+		pass
+
+
+	#addding a new valid client to clientinfo
+	def receive(msg=('add_client_at_replica',current_clock,public_key,client_id),from_=olympus):
+		output('adding client in replica clientinfo at ' + str(self) +' client id is '+ str(client_id) +' at clock '+ str(current_clock) )
+		self.client_info[client_id] = public_key
+		send(('client_registered_at_replica',current_clock,self),to=olympus)
+
+	def receive(msg=('handle_request',client_id,request_id,operation)):
+		if is_registered_client(client_id) is False:
+			#error case
+			output('malicious client found')
+		if self.is_head_replica is True:
+			check_in_result_cache(operation)
+
+
+	def receive(msg= ('store_keys',public_key,private_key)):
+		self.public_key = public_key
+		self.private_key = private_key 
+		output('yo keys found')
+		send(('KeysFound',),to=self	)
+
+	def receive(msg= ('perform_operation',public_key,private_key)):
+		self.public_key = public_key
+		self.private_key = private_key 
+		output('yo keys found')
+		send(('KeysFound',),to=self	)
+
+
+	def run():
+		await(received(('KeysFound',), from_=self))
+		output("my public_key is ")
+		output("my private_key is ")
+		await( received(('done',), from_=self) )
+		

@@ -1,0 +1,61 @@
+
+class Olympus(process):
+
+	def setup(T:int,count:int,replica_set:set):
+		self.client_info = {}
+		self.replica_set = replica_set
+		self.public_keys = []
+		self.private_keys = []
+		#output('in setup olympus')
+		initConfiguration(T,replica_set)
+
+		output('generating keys done at olympus')
+
+	def receive(msg=('register_client_at_olympus',public_key,client_id),from_=client):
+		--request
+		current_clock = logical_clock()
+		client_info[client_id] = public_key
+		output('inside olympus '+ str(client_id) + str(current_clock))
+		output(current_clock)
+		--criticalsection
+		send(('add_client_at_replica',current_clock,public_key,client_id),to=replica_set)
+		await( each(replica in replica_set,
+					 has= some(
+					  			received(('client_registered_at_replica',new_clock,replica)),
+					  			has = (new_clock == current_clock)
+					  		  ) 
+					)#outer each 
+			 )#await
+		--release
+		output('olympus done with this '+str(client_id) + str(client)) 
+		send(('client_registered_at_olympus',),to=client)
+	#def receive(msg=('client_added',),from_)
+
+	def receive(msg=('perform_operation',),from_=client):
+		pass
+
+
+	def initConfiguration(T,replica_set):
+		self.T = T#readFromConfig()
+		for i in range(0,2*T+1):
+			private_key = nacl.signing.SigningKey.generate()
+			public_key  = private_key.verify_key
+			public_keys.append(public_key)
+			private_keys.append(private_key)
+
+
+
+	#def receive(msg= ('client_registered_at_replica',),from_=client):
+	#	output("client successfully registered olympus")
+
+	def receive(msg= ('get_current_active_configuration_from_olympus',),from_=client):
+		send(('current_active_configuration',replica_set),to=client)
+
+
+	def run():
+		output("inside olympus run")
+		c= logical_clock()
+		for i in range(0,2*T+1):
+			send(('store_keys',self.public_keys[i],self.private_keys[i]),to = replica_set)
+			pass
+		await(received(('done',),from_=self))

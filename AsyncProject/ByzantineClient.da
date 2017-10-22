@@ -1,0 +1,152 @@
+def readFromConfig():
+	config = {}
+	with open('config.txt','r') as f:
+	    for line in f:
+	        if line[0] != '#':
+	          (key,sep,val) = line.partition('=')
+	          # if the line does not contain '=', it is invalid and hence ignored
+	          if len(sep) != 0:
+	              val = val.strip()
+	              config[key.strip()] = int(val) if str.isdecimal(val) else val
+	print(config)
+
+class Client(process):
+	def generateCryptoKeys():
+		self.private_key = nacl.signing.SigningKey.generate()
+		self.public_key  = private_key.verify_key
+
+	def setup(client_id:int,olympus:Olympus,client_timer_expiry:int):
+		
+		self.olympus = olympus 
+		self.client_id = client_id#str(uuid.uuid4())
+		self.request_id = 0
+		self.private_key = None
+		self.public_key = None
+		self.head_replica = None
+		self.tail_replica = None
+		self.replica_set = None
+		generateCryptoKeys()
+		self.client_timer_expiry = client_timer_expiry
+		pass
+
+
+	#def getCurrentConfiguration():
+
+	def receive(msg=('get_current_active_configuration_from_olympus',replica_set),from_=olympus):
+		self.replica_set = replica_set
+		count = 0
+		for replica in replica_set:
+			if count == 0:
+				self.head_replica = replica
+			elif count == len(replica_set) - 1:
+				self.tail_replica = replica
+
+	def receive(msg=('client_registered_at_olympus',),from_=olympus):
+		output(str(client_id)+'is successfully registered yoo ')
+
+	def run():
+		output('inside client run'+str(client_id)+' ---- '+str(self))
+		send(('register_client_at_olympus',public_key,client_id),to=olympus)
+		await(some(received(('client_registered_at_olympus',), from_=olympus)))
+		send(('get_current_active_configuration',), to=olympus)
+		#await(received(('current_active_configuration',), from_=olympus))
+		
+		operations = {}
+		for operation in operations:
+			send(('perform_operation',client_id,request_id,),to = head_replica)
+			await(some(received(('perform_operation',), from_=olympus)))
+	
+
+	def getWorkLoad():
+		config = {}
+		with open('config.txt','r') as f:
+		    for line in f:
+		        if line[0] != '#':
+		          (key,sep,val) = line.partition('=')
+		          # if the line does not contain '=', it is invalid and hence ignored
+		          if len(sep) != 0:
+		              val = val.strip()
+		              config[key.strip()] = int(val) if str.isdecimal(val) else val
+		workload =  config.get('workload['+str(0+2)+']')
+		workload = workload.split(';')
+		operations = []
+		for i in range(0,len(workload)):
+			item = workload[i]
+			print(item)
+			#print("put" in item)
+			operation_dict = {}
+			if "put" in item :
+				first_occur = item.find("'")
+				#print(first_occur)
+				second_occur = item.find("'",first_occur+1)
+				#print(second_occur)
+				key = item[first_occur+1:second_occur]
+				first_occur = item.find("'",second_occur+1)
+				second_occur = item.find("'",first_occur+1)
+				value = item[first_occur+1:second_occur]
+				operation_dict["operation"] = "put"
+				operation_dict["key"]=key
+				operation_dict["value"]=value
+			elif "append" in item:
+				first_occur = item.find("'")
+				#print(first_occur)
+				second_occur = item.find("'",first_occur+1)
+				#print(second_occur)
+				key = item[first_occur+1:second_occur]
+				first_occur = item.find("'",second_occur+1)
+				second_occur = item.find("'",first_occur+1)
+				value = item[first_occur+1:second_occur]
+				operation_dict["operation"] = "append"
+				operation_dict["key"]=key
+				operation_dict["value"]=value
+			elif "slice" in item:
+				first_occur = item.find("'")
+				#print(first_occur)
+				second_occur = item.find("'",first_occur+1)
+				#print(second_occur)
+				key = item[first_occur+1:second_occur]
+				first_occur = item.find("'",second_occur+1)
+				second_occur = item.find("'",first_occur+1)
+				value = item[first_occur+1:second_occur]
+				operation_dict["operation"] = "slice"
+				operation_dict["key"]=key
+				operation_dict["value"]=value
+			elif "get" in item:	
+				first_occur = item.find("'")
+				#print(first_occur)
+				second_occur = item.find("'",first_occur+1)
+				#print(second_occur)
+				key = item[first_occur+1:second_occur]
+				operation_dict["operation"] = "get"
+				operation_dict["key"]=key
+			operations.append(operation_dict)
+		return operations
+
+
+
+def main():
+	T = 1#readFromConfig()
+	client_timer_expiry = 1 
+	total_replica_count = 2*T+1
+	config(channel= Fifo, clock= Lamport)
+	replica_set = new(Replica, num= total_replica_count)
+	olympus = new(Olympus,num=1)
+	replica_id = 0
+	for replica in replica_set:
+		replica_id = replica_id + 1
+		setup(replica, (replica_set,replica_id))
+	
+	setup(olympus,(T,total_replica_count,replica_set))
+	start(olympus)
+	start(replica_set)
+	
+	clients = new(Client,num=2)
+	client_id = 0
+	for new_client in clients:
+		setup(new_client,(client_id,olympus,client_timer_expiry))
+		client_id = client_id + 1
+	start(clients)
+	
+
+
+    

@@ -1,0 +1,14 @@
+wedged statements
+check pointing
+timer
+delta calculation between the replica orderproofs and apply the orderproofs to remaining clients
+
+orderproof contains previous replica's crytpographics hashes as well
+
+
+doubts
+1)at any point of time how many configurations can be active in my view only will be active
+ if we are doing reconfig also only one config will be active right
+2)while reading the config file we didnt specify which client executes which operation so every client needs to 
+execute all the operations right
+3)if we are using timer how are we going to run it python built in timer or else we need to use the logical clock

@@ -1,0 +1,178 @@
+
+your system needs to be able to run with the processes distributed across two or more different hosts.  the DistAlgo README.md gives an example of how to run a DistAlgo program on multiple hosts.  each host can be a laptop, a PC in the computer lab, a node in some cloud, etc.
+
+If you are interested in using AWS, students can get free promotional AWS credits.  SBU is an AWS educate member institution.  see https://aws.amazon.com/education/
+
+CSE535 students can also get $50 coupons for Google Cloud Platform.
+
+------------------------------------------------------------
+CONFIGURATION
+
+all processes read configuration information from a configuration file whose name is specified on the command line.  for simplicity, all processes read the same configuration file, and each kind of process ignores irrelevant information.  give configuration files meaningful names!  this will help you keep track of them and help graders understand them.
+
+the configuration file contains enough information to specify a test case; thus, a user can run different test cases simply by supplying different configuration files.  this includes specification of the client workload and a failure scenario.
+
+client workload may be a list of specific requests or pseudorandom.  the former is a semicolon-separated list of invocations of the 4 operations listed above; the exact syntax is shown in the example configuration file below.  a pseudorandom workload is specified using the syntax pseudorandom(seed, n), which denotes a sequence containing n pseudorandom requests, with the specified seed for the pseudorandom number generator (for reproducibility).  details of pseudorandom request generation are not standardized: any method that generates a diverse sequence of requests is acceptable.
+
+a failure scenario is a semicolon-separated set (not a sequence, i.e., the order doesn't matter) of trigger,failure pairs for a specified replica.  we do not consider failures of clients or Olympus.  each trigger corresponds to receiving a message of a specified type and has the form message_type(args), as described in detail below. when the event specified by the trigger occurs, the specified failure occurs.  your system should contain fault-injection code that simulates these failures.  try to encapsulate fault-injection code in separate functions as much as possible, to minimize its impact on the readability of the code for the protocol itself.
+
+required failure triggers are listed below, where c >= 0 and m >= 0, i.e., clients c and received messages m are numbered starting from 0.  this message numbering is done independently by each replica (using an auxiliary data structure) for each message type from each client.  the numbering is continuous (not reset) across configurations.
+
+-----
+failure triggers for phases 2 and 3:   [2017-09-12: postponed some triggers to phase 3, and added two triggers related to checkpoints.]
+
+client_request(c, m): receipt of m'th request message directly from client c.  requests received directly from client c are numbered separately from requests of client c received via forwarding by other replicas.
+ 
+forwarded_request(c, m): receipt of m'th forwarded request message containing a request from client c.
+
+shuttle(c, m): receipt of m'th shuttle message for a request by client c.
+
+result_shuttle(c, m): receipt of m'th result-shuttle message for a request by client c.
+
+-----
+failure triggers for phase 3 only:
+
+wedge_request(m): receipt of m'th wedge-request message. [phase 3 only]
+
+new_configuration(m): receipt of m'th new_configuration message from Olympus.  it doesn't matter whether your implementation actually sends a new_configuration message for the initial configuration; either way, m=0 corresponds to the first configuration change after the initial configuration.
+
+checkpoint(m): receipt of m'th checkpoint message [phase 3 only] [2017-09-12: added this item.]
+
+completed_checkpoint(m): receipt of m'th completed checkpoint message [phase 3 only] [2017-09-12: added this item.]
+
+----
+required failures for phases 2 and 3: [2017-09-12: postponed some failures to phase 3, added drop_result_stmt, and removed omit_send() (use drop() on the receiver-side instead).]
+
+change_operation(): in the next outgoing shuttle message, this replica uses get('x') as the operation in its order statement and result statement, regardless of what the operation should be.
+
+change_result(): in the next outgoing result message (to a client) or result shuttle message, this replica uses the hash of 'OK', instead of the hash of the actual result, in its result statement.
+
+drop_result_stmt(): in the next outgoing result message (to a client) or result shuttle message, omit the head's result statement from the result proof.
+
+-----
+required failures for phase 3 only:  [2017-10-09 inserted "only"]
+
+crash(): immediately call logging.shutdown() (to flush logs to disk) and then os._exit(-1).  you need "import logging" and "import os" for this to work.
+
+truncate_history(): in the next outgoing wedged message, send a truncated history by omitting the last entry. [phase 3 only]
+
+sleep(time): sleep for the specified time, in milliseconds.  this is a timing failure. [phase 3 only]
+
+drop(): drop (i.e., ignore) the incoming message that triggered this failure. [phase 3 only]
+
+-----
+configuration files should have the following format: each row either starts with "#", in which case it is a comment, or contains the name of a configuration parameter, an equals sign, and the value of that configuration parameter.  whitespace around the equals sign is optional and should be ignored.  parameters may appear in the configuration file in any order.
+
+the following example shows the names of configuration parameters that must be supported by your system.  your system may support additional configuration parameters for your own use.
+
+# test case name.  can be used to trigger test case specific code in client,
+# e.g., to generate special request sequences or validate intermediate or
+# final values of object state. [2017-09-12: added this item]
+test_case_name = test1
+
+# number of failures to tolerate.  number of replicas is 2t+1.
+t = 1
+# number of clients
+num_client = 3
+# client timeout, in milliseconds.  if timer expires, resend request 
+# to all replicas, as described in section 3.3.
+client_timeout = 3000
+# timeout, in milliseconds, for head and non-head servers, respectively:
+# if timer expires, send reconfiguration request to Olympus, as described 
+# in section 3.3.
+head_timeout = 3000
+nonhead_timeout = 3000
+
+# MAPPING OF PROCESSES TO HOSTS
+# to simplify changing the hosts, we first specify a semicolon-separated
+# list of hosts, and then use 0-based indices into that list to specify the
+# host on which each process runs.
+# list of hosts used in this scenario
+hosts = localhost; 192.168.0.3; 192.168.0.4
+# host on which each client runs.  in this example, client 0 runs 
+# on host 1, clients 1 and 2 run on host 0.
+client_hosts = 1; 0; 0
+# host on which each replica runs.  same in all configurations.
+replica_hosts = 0; 1; 2
+
+# CLIENT WORKLOAD
+workload[0] = pseudorandom(233,5)
+workload[1] = put('movie','star'); append('movie',' wars'); get('movie')
+workload[2] = put('jedi,'luke skywalker); slice('jedi','0:4'); get('jedi')
+
+# FAILURE SCENARIO
+# failures(c,r) is the failure scenario for replica r in configuration c.
+# configurations are numbered starting with 0.  replicas are numbered by
+# position in the chain, starting from 0.  replicas without a specified
+# failure scenario are failure-free.
+failures[0,0] = client_request(2,1), crash()
+failures[1,2] = result_shuttle(0,1),drop(); shuttle(1,3),omit_send()
+
+here is some code for reading a configuration file.  client workloads and failure scenarios require additional parsing.
+
+with open('config.txt','r') as f:   [2017-10-09 changed .csv to .txt]
+    for line in f:
+        if line[0] != '#':
+          (key,sep,val) = line.partition('=')
+          # if the line does not contain '=', it is invalid and hence ignored
+          if len(sep) != 0:
+              val = val.strip()
+              config[key.strip()] = int(val) if str.isdecimal(val) else val
+print(config)
+
+note: I was reluctant to standardize the configuration file format.  however, students in previous years recommended that demos include new instructor-supplied test cases (which is practical only with a standardized format), because some students were clever at constructing test cases that circumvented the bugs in their systems.
+
+------------------------------------------------------------
+LOGS
+
+each process should generate a comprehensive log file describing initial settings, the content of every message received, the content of every message sent, and details of every significant internal action.  every log entry should contain a real-time timestamp.
+
+the log file should have a self-describing format, in the sense that each value is labeled with a name indicating its meaning.  for example, each component of a message should be labeled to indicate its meaning; do not rely on the reader to know that the first component of the tuple means X, the second component means Y, etc.
+
+each injected failure should be recorded in a log entry containing the exact trigger,failure pair (e.g., "client_request(2,1), crash()") in the configuration file that caused the failure.
+
+if using DistAlgo, the log file should be produced using DistAlgo's built-in support for logging.  See the "Logging output" section of the DistAlgo language description (language.pdf) and the logging-related command-line options (search for "log" in the output of "python -m da --help").
+
+processes may write to individual log files or a common log file (in this case, each log entry should be labeled with the process that produced it).
+
+give log files meaningful names!  a good practice is to use the name of the corresponding configuration file with a small variation (e.g., insert "-log" in the name).
+
+------------------------------------------------------------
+TESTING
+
+[2017-09-12: revised this paragraph.]  testing should be thorough.  the submission should include test cases that demonstrate that all implementation requirements on the grading sheet are satisfied.  these correspond to aspects of the algorithm.  thus, the requests and failure patterns in the test cases collectively should allow a user examining the logs to determine that all of these aspects of the algorithm are implemented correctly, and the system has the expected fault-tolerance for all failures described in the CONFIGURATION section.
+
+[2017-09-12: revised this paragraph.]  in addition to targeted test cases designed to satisfy the above requirements, the submission should contain at least one larger pseudorandom "stress test" involving more clients (around 10) and more requests (around 100).  passing stress tests should require more than absence of runtime errors: at the end of the test, the client should execute one or more queries to check whether the dictionary has the expected content, and if not, report an error.  this check should be described in testing.txt.  for the targeted test cases, this check can be done manually by examination of the log file if the test case is sufficiently short and simple, otherwise it should be done programmatically.
+
+testing should include configurations with t=1 and t=2.
+
+processes should be deployed on two or more different hosts in at least one failure-free test case and at least one test case involving a crash failure.
+
+your submission should contain:
+
+the log files produced by running all test cases.
+
+a file named testing.txt with an entry for each test case.  each entry should include: (1) brief description of the scenario (i.e., the client requests, failure scenario, etc.), (2) the name of the configuration file used to run the test case, (3) other information (if any) needed to run the test case, e.g., that certain files should contain certain content, (4) the name of the log file produced by running the test case, (5) the outcome (pass or fail), with a brief explanation of the problem in case of failure.
+
+------------------------------------------------------------
+README
+
+you submission should contain a README with the following sections:
+
+PLATFORM.  describe the software platform(s) used in your testing, including DistAlgo version, Python implementation (normally CPython) and version, operating system, and types of hosts (e.g., laptop (without any VMs), VMs running on VMWare Workstation Player on a laptop, VMs on Google Cloud Compute Engine, VMs on Amazon Web Services EC2).  for testcases involving multiple hosts, specify the platform for each host.  [2017-10-05 added this]
+
+INSTRUCTIONS.  instructions to build and run your system.  the instructions should not rely on an IDE.  provide a detailed sequence of commands, a shell script, or something similar.  include a specific example of the command(s) to run a selected test case.
+
+WORKLOAD GENERATION.  briefly describe your algorithm for pseudorandom client workload generation.
+
+BUGS AND LIMITATIONS.  a list of all known bugs in and limitations of your code.
+
+CONTRIBUTIONS.  a list of contributions of each team member to the current submission.  this should reflect how the work was divided between the team members.  generally, a dozen lines or so is sufficient.
+
+MAIN FILES.  full pathnames of the files containing the main code for clients, replicas, and Olympus.  this will help graders look at the most important code first.
+
+CODE SIZE.  (1a) report the numbers of non-blank non-comment lines of code (LOC) in your system in the following categories: algorithm, other, and total.  "algorithm" is for the algorithm itself and other functionality interleaved with it (fault injection, logging, debugging, etc.).  "other" is for everything that can easily be separated from the algorithm, e.g., configuration and testing.  (1b) report how you obtained the counts (I use CLOC https://github.com/AlDanial/cloc).  (2) give a rough estimate of how much of the "algorithm" code is for the algorithm itself, and how much is for other functionality interleaved with it.
+
+LANGUAGE FEATURE USAGE. report the numbers of list comprehensions, dictionary comprehensions, set comprehensions, aggregations, and quantifications in your code.  the first two are Python features; the others are DistAlgo features.
+
+OTHER COMMENTS.  anything else you want us to know.

@@ -1,0 +1,65 @@
+import sys
+from time import sleep
+config(channel= 'fifo', clock= 'Lamport')
+
+class P(process):
+    def setup(s:set, nrequests:int,id:int): 
+        print(len(s))
+        pass  # s is set of all other processes
+
+    def mutex(task):
+        -- request
+        c = logical_clock()
+        work()
+        output('clock '+str(c)+ ' my id is '+ str(id))
+        send(('request', c, self), to= s)
+        output('clock after '+str(c) + ' my id is '+ str(id) + str(self))
+        await(each(received(('request', c2, p)),
+                   has= received(('release', c2, p)) or (c, self) < (c2, p))
+              and each(p in s, has= received(('ack', c, p))))
+        output('clock final '+str(c2) + ' my id is '+ str(id))
+        -- critical_section
+        task()
+        -- release
+        send(('release', c, self), to= s)
+
+    def receive(msg= ('request', c, p)):
+        output('clock in receive '+str(c) + ' sender id is '+ str(id) + 'my id is' +str(p))
+        send(('ack', c, self), to= p)
+
+    def run():
+        def task():
+            output('in cs')
+            output('releasing cs')
+        for i in range(nrequests):
+            mutex(task)
+
+        send(('done', self), to= s)
+        await(each(p in s, has= received(('done', p))))
+        output('terminating')
+
+def main():
+    nprocs = int(sys.argv[1]) if len(sys.argv) > 1 else 3
+    nrequests = int(sys.argv[2]) if len(sys.argv) > 2 else 1
+
+    ps = new(P, num= nprocs)
+    print(type(ps))
+    count = 0
+    for p in ps:
+     setup(p, (ps-{p}, nrequests,count))
+     count = count + 1
+    start(ps)
+
+# This is an executable specification that simplifies the algorithm in
+# Lamport, L. (1978). "Time, clocks, and the ordering of events in a
+# distributed system".  Communications of the ACM, 21(7):558-565.
+
+# The simplification is to remove an unnecessary q and message handler;
+# release and ack messages include the request time,
+# not timestamps unused or used for unnecessary expensive comparison.
+
+# This code includes setup and termination for serving a given number of
+# requests per process.
+
+# All labels are not needed,
+# leaving a total of 9 lines for the algorithm body and message handler.
