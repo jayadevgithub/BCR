@@ -1,27 +1,28 @@
-import random
+
 
 def readFromConfig():
     config = {}
-    with open('config.txt','r') as f:
+    with open('config.txt', 'r') as f:
         for line in f:
             if line[0] != '#':
-              (key,sep,val) = line.partition('=')
-              # if the line does not contain '=', it is invalid and hence ignored
-              if len(sep) != 0:
-                  val = val.strip()
-                  config[key.strip()] = int(val) if str.isdecimal(val) else val
+                (key, sep, val) = line.partition('=')
+                # if the line does not contain '=', it is invalid and hence ignored
+                if len(sep) != 0:
+                    val = val.strip()
+                    config[key.strip()] = int(
+                        val) if str.isdecimal(val) else val
     print(config)
 
 
 class Client(process):
     def generateCryptoKeys():
         self.private_key = nacl.signing.SigningKey.generate()
-        self.public_key  = private_key.verify_key
+        self.public_key = private_key.verify_key
 
-    def setup(client_id:int,olympus:Olympus,client_timer_expiry:int):
-        
-        self.olympus = olympus 
-        self.client_id = client_id#str(uuid.uuid4())
+    def setup(client_id: int, olympus: Olympus, client_timer_expiry: int):
+
+        self.olympus = olympus
+        self.client_id = client_id  # str(uuid.uuid4())
         self.request_id = 0
         self.private_key = None
         self.public_key = None
@@ -31,11 +32,11 @@ class Client(process):
         generateCryptoKeys()
         self.client_timer_expiry = client_timer_expiry
 
-    #def getCurrentConfiguration():
-    def receive(msg=('received_active_configuration_at_client',replica_set),from_=olympus):
-        
-        output("inside get current active config at client"+str(self))
-        output("olympus address is "+str(olympus) +" at client "+str(self))
+    # def getCurrentConfiguration():
+    def receive(msg=('received_active_configuration_at_client', replica_set), from_=olympus):
+
+        output("inside get current active config at client" + str(self))
+        output("olympus address is " + str(olympus) + " at client " + str(self))
         print(replica_set)
         print(type(replica_set))
         count = 0
@@ -47,142 +48,141 @@ class Client(process):
                 self.tail_replica = replica
             output("yo found my replicas at client")
 
-    def receive(msg=('client_registered_at_olympus',),from_=olympus):
-        output(str(client_id)+'is successfully registered yoo ')
-        
+    def receive(msg=('client_registered_at_olympus',), from_=olympus):
+        output(str(client_id) + 'is successfully registered yoo ')
+
     def run():
-        output('inside client run'+str(client_id)+' ---- '+str(self))
-        
-        send(('register_client_at_olympus',public_key,client_id),to=olympus)
+        output('inside client run' + str(client_id) + ' ---- ' + str(self))
+
+        send(('register_client_at_olympus', public_key, client_id), to=olympus)
         await(some(received(('client_registered_at_olympus',), from_=olympus)))
-        output("inside client after registration "+str(self))
-        
+        output("inside client after registration " + str(self))
+
         send(('get_current_active_configuration_from_olympus',), to=olympus)
-        output("olympus address is "+str(olympus))
-        await(some(received(('received_active_configuration_at_client',_), from_=olympus)))
-        
-        output("performing operations" )
+        output("olympus address is " + str(olympus))
+        await(some(received(('received_active_configuration_at_client', _), from_=olympus)))
+
+        output("performing operations")
         operations = getWorkLoad()
         for operation in operations:
-            send(('perform_operation',client_id,request_id,operation,self),to = head_replica)
+            send(('perform_operation', client_id, request_id,
+                  operation, self), to=head_replica)
             await(some(received(('perform_operation',), from_=olympus)))
-	
-	def pseudorandom_workload_gen(seed, count):
-		random.seed(seed)
-		list_operations = ["put('movie','star')",
-							"append('movie',' wars')",
-							"get('movie')",
-							"put('jedi','luke skywalker)",
-							"slice('jedi','0:4'); get('jedi')"]
-		list_random_operations = []
-		
-		for i in range(count):
-			list_random_operations.append(list_operations[random.randint(0,len(list_operations)-1)])
 
-		return "; ".join(list_random_operations)
+        def pseudorandom_workload_gen(seed, count):
+            random.seed(seed)
+            list_operations = ["put('movie','star')",
+                               "append('movie',' wars')",
+                               "get('movie')",
+                               "put('jedi','luke skywalker)",
+                               "slice('jedi','0:4'); get('jedi')"]
+            list_random_operations = []
 
-	def getWorkLoad():
-		config = {}
-		with open('config.txt','r') as f:
-		    for line in f:
-		        if line[0] != '#':
-		          (key,sep,val) = line.partition('=')
-		          # if the line does not contain '=', it is invalid and hence ignored
-		          if len(sep) != 0:
-		              val = val.strip()
-		              config[key.strip()] = int(val) if str.isdecimal(val) else val
-		workload =  config.get('workload['+str(client_id)+']')
-		if("pseudorandom" in workload):
-			open_brace_index = workload.find("(")
-			comma_index = workload.find(",")
-			close_brace_index = workload.find(")")
+            for i in range(count):
+                list_random_operations.append(
+                    list_operations[random.randint(0, len(list_operations) - 1)])
 
-			seed = int(workload[open_brace_index+1:comma_index].strip())
-			count = int(workload[comma_index+1:close_brace_index].strip())
+            return "; ".join(list_random_operations)
 
-			workload = pseudorandom_workload_gen(seed,count)
+        def getWorkLoad():
+            config = {}
+            with open('config.txt', 'r') as f:
+                for line in f:
+                    if line[0] != '#':
+                        (key, sep, val) = line.partition('=')
+                        # if the line does not contain '=', it is invalid and hence ignored
+                        if len(sep) != 0:
+                            val = val.strip()
+                            config[key.strip()] = int(
+                                val) if str.isdecimal(val) else val
+            workload = config.get('workload[' + str(client_id) + ']')
+            if("pseudorandom" in workload):
+                open_brace_index = workload.find("(")
+                comma_index = workload.find(",")
+                close_brace_index = workload.find(")")
 
-		workload = workload.split(';')
-		operations = []
-		for i in range(0,len(workload)):
-			item = workload[i].strip()
-			print(item)
-			#print("put" in item)
-			operation_dict = {}
-			if "put" in item :
-				first_occur = item.find("'")
-				#print(first_occur)
-				second_occur = item.find("'",first_occur+1)
-				#print(second_occur)
-				key = item[first_occur+1:second_occur].strip()
-				first_occur = item.find("'",second_occur+1)
-				second_occur = item.find("'",first_occur+1)
-				value = item[first_occur+1:second_occur].strip()
-				operation_dict["operation"] = "put"
-				operation_dict["key"]=key
-				operation_dict["value"]=value
-			elif "append" in item:
-				first_occur = item.find("'")
-				#print(first_occur)
-				second_occur = item.find("'",first_occur+1)
-				#print(second_occur)
-				key = item[first_occur+1:second_occur].strip()
-				first_occur = item.find("'",second_occur+1)
-				second_occur = item.find("'",first_occur+1)
-				value = item[first_occur+1:second_occur].strip()
-				operation_dict["operation"] = "append"
-				operation_dict["key"]=key
-				operation_dict["value"]=value
-			elif "slice" in item:
-				first_occur = item.find("'")
-				#print(first_occur)
-				second_occur = item.find("'",first_occur+1)
-				#print(second_occur)
-				key = item[first_occur+1:second_occur].strip()
-				first_occur = item.find("'",second_occur+1)
-				second_occur = item.find("'",first_occur+1)
-				value = item[first_occur+1:second_occur].strip()
-				operation_dict["operation"] = "slice"
-				operation_dict["key"]=key
-				slice_indices = value.split(":")
-				operation_dict["value1"] = slice_indices[0].strip()
-				operation_dict["value2"] = slice_indices[1].strip()
-			elif "get" in item:	
-				first_occur = item.find("'")
-				#print(first_occur)
-				second_occur = item.find("'",first_occur+1)
-				#print(second_occur)
-				key = item[first_occur+1:second_occur].strip()
-				operation_dict["operation"] = "get"
-				operation_dict["key"]=key
-			operations.append(operation_dict)
-		return operations
+                seed = int(workload[open_brace_index + 1:comma_index].strip())
+                count = int(
+                    workload[comma_index + 1:close_brace_index].strip())
 
+                workload = pseudorandom_workload_gen(seed, count)
+
+            workload = workload.split(';')
+            operations = []
+            for i in range(0, len(workload)):
+                item = workload[i].strip()
+                print(item)
+                #print("put" in item)
+                operation_dict = {}
+                if "put" in item:
+                    first_occur = item.find("'")
+                    # print(first_occur)
+                    second_occur = item.find("'", first_occur + 1)
+                    # print(second_occur)
+                    key = item[first_occur + 1:second_occur].strip()
+                    first_occur = item.find("'", second_occur + 1)
+                    second_occur = item.find("'", first_occur + 1)
+                    value = item[first_occur + 1:second_occur].strip()
+                    operation_dict["operation"] = "put"
+                    operation_dict["key"] = key
+                    operation_dict["value"] = value
+                elif "append" in item:
+                    first_occur = item.find("'")
+                    # print(first_occur)
+                    second_occur = item.find("'", first_occur + 1)
+                    # print(second_occur)
+                    key = item[first_occur + 1:second_occur].strip()
+                    first_occur = item.find("'", second_occur + 1)
+                    second_occur = item.find("'", first_occur + 1)
+                    value = item[first_occur + 1:second_occur].strip()
+                    operation_dict["operation"] = "append"
+                    operation_dict["key"] = key
+                    operation_dict["value"] = value
+                elif "slice" in item:
+                    first_occur = item.find("'")
+                    # print(first_occur)
+                    second_occur = item.find("'", first_occur + 1)
+                    # print(second_occur)
+                    key = item[first_occur + 1:second_occur].strip()
+                    first_occur = item.find("'", second_occur + 1)
+                    second_occur = item.find("'", first_occur + 1)
+                    value = item[first_occur + 1:second_occur].strip()
+                    operation_dict["operation"] = "slice"
+                    operation_dict["key"] = key
+                    slice_indices = value.split(":")
+                    operation_dict["value1"] = slice_indices[0].strip()
+                    operation_dict["value2"] = slice_indices[1].strip()
+                elif "get" in item:
+                    first_occur = item.find("'")
+                    # print(first_occur)
+                    second_occur = item.find("'", first_occur + 1)
+                    # print(second_occur)
+                    key = item[first_occur + 1:second_occur].strip()
+                    operation_dict["operation"] = "get"
+                    operation_dict["key"] = key
+                operations.append(operation_dict)
+            return operations
 
 
 def main():
-	T = 1#readFromConfig()
-	client_timer_expiry = 1 
-	total_replica_count = 2*T+1
-	config(channel= Fifo, clock= Lamport)
-	replica_set = new(Replica, num= total_replica_count)
-	olympus = new(Olympus,num=1)
-	replica_id = 0
-	for replica in replica_set:
-		replica_id = replica_id + 1
-		setup(replica, (replica_set,replica_id))
-	
-	setup(olympus,(T,total_replica_count,replica_set))
-	start(olympus)
-	start(replica_set)
-	
-	clients = new(Client,num=2)
-	client_id = 0
-	for new_client in clients:
-		setup(new_client,(client_id,olympus,client_timer_expiry))
-		client_id = client_id + 1
-	start(clients)
-	
+    T = 1  # readFromConfig()
+    client_timer_expiry = 1
+    total_replica_count = 2 * T + 1
+    config(channel=Fifo, clock=Lamport)
+    replica_set = new(Replica, num=total_replica_count)
+    olympus = new(Olympus, num=1)
+    replica_id = 0
+    for replica in replica_set:
+        replica_id = replica_id + 1
+        setup(replica, (replica_set, replica_id))
 
+    setup(olympus, (T, total_replica_count, replica_set))
+    start(olympus)
+    start(replica_set)
 
-    
+    clients = new(Client, num=2)
+    client_id = 0
+    for new_client in clients:
+        setup(new_client, (client_id, olympus, client_timer_expiry))
+        client_id = client_id + 1
+    start(clients)
