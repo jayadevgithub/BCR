@@ -31,6 +31,7 @@ class Client(process):
         self.replica_set = []
         generateCryptoKeys()
         self.client_timer_expiry = client_timer_expiry
+        self.client_timeout = 0
 
     # def getCurrentConfiguration():
     def receive(msg=('received_active_configuration_at_client', replica_set), from_=olympus):
@@ -64,10 +65,16 @@ class Client(process):
 
         output("performing operations")
         operations = getWorkLoad()
+        print(self.client_timeout)
         for operation in operations:
             send(('perform_operation', client_id, request_id,
                   operation, self), to=head_replica)
-            await(some(received(('perform_operation',), from_=olympus)))
+
+        if await(some(received(('perform_operation',), from_=olympus))): pass
+        elif timeout(self.client_timeout):
+        	output("timeout occurred, sending request to all replicas")
+        	send(('initiating_retransmit_request', client_id, request_id, operation, self), to=replica_set)
+        	await(some(received(('served_retransmit_request',), from_=replica_set)))
 
     def pseudorandom_workload_gen(seed, count):
         random.seed(seed)
@@ -96,6 +103,9 @@ class Client(process):
                         config[key.strip()] = int(
                             val) if str.isdecimal(val) else val
         workload = config.get('workload[' + str(client_id) + ']')
+        #client_timeout = 3000
+        self.client_timeout = config.get('client_timeout')
+
         if("pseudorandom" in workload):
             open_brace_index = workload.find("(")
             comma_index = workload.find(",")
