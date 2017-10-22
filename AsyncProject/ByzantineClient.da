@@ -32,9 +32,10 @@ class Client(process):
 		generateCryptoKeys()
 		self.client_timer_expiry = client_timer_expiry
 		self.client_timeout = 0
+		self.replica_public_keys = []
 
 	# def getCurrentConfiguration():
-	def receive(msg=('received_active_configuration_at_client', replica_set), from_=olympus):
+	def receive(msg=('received_active_configuration_at_client', replica_set, public_keys), from_=olympus):
 
 		output("inside get current active config at client" + str(self))
 		output("olympus address is " + str(olympus) + " at client " + str(self))
@@ -50,12 +51,27 @@ class Client(process):
 			output("yo found my replicas at client")
 			count = count + 1
 
+		for public_key in public_keys:
+			self.replica_public_keys.append[public_key]
+
 	def receive(msg=('client_registered_at_olympus',), from_=olympus):
 		output(str(client_id) + 'is successfully registered yoo ')
 
 	def receive(msg=('result_shuttle',result_shuttle,result), from_=tail_replica):
 		print("after shuttled")
 		print(result_shuttle,result)
+		count = 0
+		for result_proof in result_shuttle:
+			replica_public_key = replica_public_keys[result_proof.replica_Id]
+			if(decode_hash(result_proof.result_hash_value, result_proof.result_signed_value, replica_public_key)):
+				count += 1
+
+		if(count < olympus.T+1): pass
+			#fialure
+		else:
+			output('verified result')
+			send(('verified_result',), to= self)
+
 
 	def run():
 		output('inside client run' + str(client_id) + ' ---- ' + str(self))
@@ -76,6 +92,7 @@ class Client(process):
 				  operation, self,None,None,None), to=head_replica)
 			if await(some(received(('result_shuttle',_,_), from_=olympus))): 
 				print("after await")
+				await(some(received(('verified_result',__), from_=self)))
 				pass
 			elif timeout(self.client_timeout):
 				output("timeout occurred, sending request to all replicas")
