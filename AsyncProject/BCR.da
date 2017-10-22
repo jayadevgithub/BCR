@@ -3,284 +3,497 @@ import nacl.encoding
 import nacl.signing
 import nacl.hash
 import uuid
+import copy
+import random
 from nacl.bindings.utils import sodium_memcmp
 
+
+class History():
+	
+	def __init__(self):
+		self.order_proof_for_each_slot = []
+
+	def add_order_proof_to_history(self,order_proof):
+		self.order_proof_for_each_slot.append(order_proof)
+
+
+class OrderStatement():
+	
+	def __init__(self, slot, operation, replica_id):
+		# todo
+		self.slot = slot
+		self.hash_operation = None
+		self.signed_hash = None
+		self.replica_id = replica_id
+
+
+class ResultProof():
+	#Config_Id =None
+	
+	def __init__(self, operation, replica_Id, result):
+		# todo
+		self.operation = operation
+		self.replica_Id = replica_Id
+		self.result_hash_value = result
+		self.result_signed_value = result
+
+
+class OrderProof():
+	#Config_Id =None
+	
+	def __init__(self, slot, operation, replica_Id):
+		self.slot = slot
+		self.operation = operation
+		self.replica_Id = replica_Id
+		self.order_statements = []
+		#self.Config_Id = Config_Id
+
+	def add_order_statment(self,order_statement):
+		self.order_statements.append(order_statement)
+
+	def set_replica_id_in_order_proof(self,replica_Id):
+		self.replica_Id = replica_Id
+
+
+class Shuttle():
+	
+	def __init__(self, slot, operation):
+		self.order_proof = OrderProof(slot, operation,None)
+		self.result_proofs = []
+
+	def add_order_statement_to_order_proof_in_shuttle(self,order_statement):
+		new_order_statement = copy.copy(order_statement)
+		self.order_proof.add_order_statment(new_order_statement)
+
+	def add_result_proof_to_shuttle(self,result_proof):
+		#new_result_proof = copy.copy(result_proof)
+		self.result_proofs.append(result_proof)
+
+	def get_order_proof_from_shuttle(self):
+		print("inside Shuttle")
+		print(self.order_proof)
+		new_order_proof = copy.copy(self.order_proof)
+		return new_order_proof
+
+
 class Replica(process):
-	#def decrypt_message(msg):
+	# def decrypt_message(msg):
 
-
-	def setup(replica_set:set,replica_id:int):
+	def setup(replica_Set: set, replica_Id: int):
 		self.client_info = {}
 		self.public_key = None
-		self.private_key =None
-		self.data_object = None
-		self.replica_id = None
-		self.mode =None
+		self.private_key = None
+		self.data_object = {}
+		self.replica_id = replica_Id
+		self.mode = None
 		self.result_cache = {}
 		self.is_head_replica = False
-		self.is_hail_replica = False
-		self.replica_set = replica_set
+		self.is_tail_replica = False
+		self.replica_set = []
 		self.history = None
 		self.current_slot_number = 0
 		self.result_cache = {}
+		self.history = History()
+		print("**replica_id"+str(replica_Id))
 
-		if replica_id == 1:
-			isHead = True
-		elif replica_id == len(replica_set):
-			isTail = True
+		if replica_Id == 0:
+			print("inside head_replica")
+			self.is_head_replica = True
+		elif replica_Id == len(replica_Set) - 1:
+			self.is_tail_replica = True
+
+		for replica in replica_Set:
+			self.replica_set.append(replica)
+		print("tick")
+		print(replica_set)
 
 	def is_registered_client(client_id):
-		if client_id in self.client_info :
+		if client_id in self.client_info:
 			return True
 		else:
 			return False
 
-	def check_in_result_cache():
-		pass
+	def check_in_result_cache(operation):
+		return None
 
-
-	#addding a new valid client to clientinfo
-	def receive(msg=('add_client_at_replica',current_clock,public_key,client_id),from_=olympus):
-		output('adding client in replica clientinfo at ' + str(self) +' client id is '+ str(client_id) +' at clock '+ str(current_clock) )
+	# addding a new valid client to clientinfo
+	def receive(msg=('add_client_at_replica', current_clock, public_key, client_id), from_=olympus):
+		output('adding client in replica clientinfo at ' + str(self) +
+			   ' client id is ' + str(client_id) + ' at clock ' + str(current_clock))
 		self.client_info[client_id] = public_key
-		send(('client_registered_at_replica',current_clock,self),to=olympus)
+		send(('client_registered_at_replica', current_clock, self), to=olympus)
 
-	def receive(msg=('handle_request',client_id,request_id,operation)):
+	def process_operation(operation):
+		output('inside process operation')
+		print(operation)
+		print(operation["operation"])
+		print(operation["operation"] is 'append')
+		opcode = operation['operation']
+		print(opcode == 'append')
+		if opcode == "put":
+			key = operation["key"]
+			value = operation["value"]
+			self.data_object[key] = value
+			return "OK"
+		elif opcode == "get":
+			key = operation["key"]
+			value = data_object[key]
+			return value
+		elif opcode == "slice":
+			key = operation["key"]
+			if key in data_object:
+				return "Error"
+			index1 = int(operation["value1"])
+			index2 = int(operation["value2"])
+			value = data_object[key]
+			value = value[index1:index2]
+			self.data_object[key] = value
+			return value
+		elif opcode == "append":
+			print("inside append")
+			key = operation["key"]
+			print('key ' +key)
+			if key not in data_object:
+				return "Error"
+			value = operation["value"]
+			value = value + data_object[key]
+			return "OK"
+
+	def get_next_replica():
+		print("replica_set my id is" +str(replica_id))
+		print(replica_set)
+		if replica_id == len(replica_set) - 1:
+			return None  # tail_replica
+		else:
+			return replica_set[replica_id + 1]
+
+	def get_prev_replica():
+		if replica_id == 0:
+			return None  # head_replica
+		else:
+			return replica_set[replica_id - 1]
+
+	def receive(msg=('perform_operation', client_id, request_id, operation, client_process, prev_order_statement, result, result_shuttle)):
 		if is_registered_client(client_id) is False:
-			#error case
+			# error case
 			output('malicious client found')
-		if self.is_head_replica is True:
-			check_in_result_cache(operation)
+		else:
+			output("client processing operation"+str(replica_id))
+			print(operation)
+			print("self.is_head_replica:" +str(self.is_head_replica))
 
+			if check_in_result_cache(operation) is not None:
+				pass
+				# todo
+			elif self.is_head_replica is True:
+				result = process_operation(operation)
+				print(result)
+				print("result")
+				order_proof = OrderProof(
+					current_slot_number, operation, replica_id)
+				order_statement = OrderStatement(
+					current_slot_number, operation, replica_id)
+				print(order_statement)
+				order_proof.add_order_statment(None)
+				
+				history.add_order_proof_to_history(order_proof)
+				print("hunter")
+				result_proof = ResultProof(operation, replica_id, result)
+				print("yo")
+				result_shuttle = Shuttle(current_slot_number,operation)
+				print("yo2")
+				result_shuttle.add_result_proof_to_shuttle(result_proof)
+				print("yo3")
+				result_shuttle.add_order_statement_to_order_proof_in_shuttle(
+					order_statement)
 
-	def receive(msg= ('store_keys',public_key,private_key)):
+				next_replica = get_next_replica()
+				send(('perform_operation', client_id, request_id, operation, client_process,
+				 	  order_statement, result, result_shuttle), to=next_replica)
+			else:
+				print("dont")
+				result = process_operation(operation)
+
+				order_proof = result_shuttle.get_order_proof_from_shuttle()
+				print("order_proof")
+				print(order_proof)
+				order_proof.set_replica_id_in_order_proof(replica_id)
+				order_statement = OrderStatement(
+					current_slot_number, operation, replica_id)
+				order_proof.add_order_statment(order_statement)
+				history.add_order_proof_to_history(order_proof)
+				result_proof = ResultProof(operation, replica_id, result)
+
+				result_shuttle.add_result_proof_to_shuttle(result_proof)
+				result_shuttle.add_order_statement_to_order_proof_in_shuttle(
+					order_statement)
+				print("here")
+				if self.is_tail_replica is True:
+					# todo
+					pass
+				else:
+					print("inside here")
+					next_replica = get_next_replica()
+					send(('perform_operation', client_id, request_id, operation, client_process,
+				 	  order_statement, result, result_shuttle), to=next_replica)
+
+				# return from result cache
+
+	def receive(msg=('store_keys', public_key, private_key)):
 		self.public_key = public_key
-		self.private_key = private_key 
+		self.private_key = private_key
 		output('yo keys found')
-		send(('KeysFound',),to=self	)
-
-	def receive(msg= ('perform_operation',public_key,private_key)):
-		self.public_key = public_key
-		self.private_key = private_key 
-		output('yo keys found')
-		send(('KeysFound',),to=self	)
-
+		send(('KeysFound',), to=self	)
 
 	def run():
 		await(received(('KeysFound',), from_=self))
 		output("my public_key is ")
 		output("my private_key is ")
-		await( received(('done',), from_=self) )
-		
+		await(received(('done',), from_=self))
+
 class Olympus(process):
 
-	def setup(T:int,count:int,replica_set:set):
+	def setup(T: int, count: int, replica_set: set):
 		self.client_info = {}
 		self.replica_set = replica_set
 		self.public_keys = []
 		self.private_keys = []
 		#output('in setup olympus')
-		initConfiguration(T,replica_set)
+		initConfiguration(T, replica_set)
 
 		output('generating keys done at olympus')
 
-	def receive(msg=('register_client_at_olympus',public_key,client_id),from_=client):
+	def receive(msg=('register_client_at_olympus', public_key, client_id), from_=client):
 		--request
 		current_clock = logical_clock()
 		client_info[client_id] = public_key
-		output('inside olympus '+ str(client_id) + str(current_clock))
+		output('inside olympus ' + str(client_id) + str(current_clock))
 		output(current_clock)
 		--criticalsection
-		send(('add_client_at_replica',current_clock,public_key,client_id),to=replica_set)
-		await( each(replica in replica_set,
-					 has= some(
-					  			received(('client_registered_at_replica',new_clock,replica)),
-					  			has = (new_clock == current_clock)
-					  		  ) 
-					)#outer each 
-			 )#await
+		send(('add_client_at_replica', current_clock,
+			  public_key, client_id), to=replica_set)
+		await(each(replica in replica_set,
+				   has=some(
+					   received(
+						   ('client_registered_at_replica', new_clock, replica)),
+					   has=(new_clock == current_clock)
+				   )
+				   )  # outer each
+			  )  # await
 		--release
-		output('olympus done with this '+str(client_id) + str(client)) 
-		send(('client_registered_at_olympus',),to=client)
-	#def receive(msg=('client_added',),from_)
+		output('olympus done with this ' + str(client_id) + str(client))
+		send(('client_registered_at_olympus',), to=client)
+	# def receive(msg=('client_added',),from_)
 
-	def receive(msg=('perform_operation',),from_=client):
-		pass
-
-
-	def initConfiguration(T,replica_set):
-		self.T = T#readFromConfig()
-		for i in range(0,2*T+1):
+	def initConfiguration(T, replica_set):
+		self.T = T  # readFromConfig()
+		for i in range(0, 2 * T + 1):
 			private_key = nacl.signing.SigningKey.generate()
-			public_key  = private_key.verify_key
+			public_key = private_key.verify_key
 			public_keys.append(public_key)
 			private_keys.append(private_key)
 
-
-
-	#def receive(msg= ('client_registered_at_replica',),from_=client):
+	# def receive(msg= ('client_registered_at_replica',),from_=client):
 	#	output("client successfully registered olympus")
 
-	def receive(msg= ('get_current_active_configuration_from_olympus',),from_=client):
-		send(('current_active_configuration',replica_set),to=client)
-
+	def receive(msg=('get_current_active_configuration_from_olympus',), from_=client):
+		output("inside get active configuration from olympus at olympus " + str(client))
+		send(('received_active_configuration_at_client', replica_set), to=client)
 
 	def run():
 		output("inside olympus run")
-		c= logical_clock()
-		for i in range(0,2*T+1):
-			send(('store_keys',self.public_keys[i],self.private_keys[i]),to = replica_set)
+		c = logical_clock()
+		for i in range(0, 2 * T + 1):
+			send(
+				('store_keys', self.public_keys[i], self.private_keys[i]), to=replica_set)
 			pass
-		await(received(('done',),from_=self))
+		await(received(('done',), from_=self))
+
+
 def readFromConfig():
 	config = {}
-	with open('config.txt','r') as f:
-	    for line in f:
-	        if line[0] != '#':
-	          (key,sep,val) = line.partition('=')
-	          # if the line does not contain '=', it is invalid and hence ignored
-	          if len(sep) != 0:
-	              val = val.strip()
-	              config[key.strip()] = int(val) if str.isdecimal(val) else val
+	with open('config.txt', 'r') as f:
+		for line in f:
+			if line[0] != '#':
+				(key, sep, val) = line.partition('=')
+				# if the line does not contain '=', it is invalid and hence ignored
+				if len(sep) != 0:
+					val = val.strip()
+					config[key.strip()] = int(
+						val) if str.isdecimal(val) else val
 	print(config)
+
 
 class Client(process):
 	def generateCryptoKeys():
 		self.private_key = nacl.signing.SigningKey.generate()
-		self.public_key  = private_key.verify_key
+		self.public_key = private_key.verify_key
 
-	def setup(client_id:int,olympus:Olympus,client_timer_expiry:int):
-		
-		self.olympus = olympus 
-		self.client_id = client_id#str(uuid.uuid4())
+	def setup(client_id: int, olympus: Olympus, client_timer_expiry: int):
+
+		self.olympus = olympus
+		self.client_id = client_id  # str(uuid.uuid4())
 		self.request_id = 0
 		self.private_key = None
 		self.public_key = None
 		self.head_replica = None
 		self.tail_replica = None
-		self.replica_set = None
+		self.replica_set = []
 		generateCryptoKeys()
 		self.client_timer_expiry = client_timer_expiry
-		pass
 
+	# def getCurrentConfiguration():
+	def receive(msg=('received_active_configuration_at_client', replica_set), from_=olympus):
 
-	#def getCurrentConfiguration():
-
-	def receive(msg=('get_current_active_configuration_from_olympus',replica_set),from_=olympus):
-		self.replica_set = replica_set
+		output("inside get current active config at client" + str(self))
+		output("olympus address is " + str(olympus) + " at client " + str(self))
+		print(replica_set)
+		print(type(replica_set))
 		count = 0
 		for replica in replica_set:
+			self.replica_set.append(replica)
 			if count == 0:
 				self.head_replica = replica
 			elif count == len(replica_set) - 1:
 				self.tail_replica = replica
+			count = count + 1
+			output("yo found my replicas at client")
 
-	def receive(msg=('client_registered_at_olympus',),from_=olympus):
-		output(str(client_id)+'is successfully registered yoo ')
+	def receive(msg=('client_registered_at_olympus',), from_=olympus):
+		output(str(client_id) + 'is successfully registered yoo ')
 
 	def run():
-		output('inside client run'+str(client_id)+' ---- '+str(self))
-		send(('register_client_at_olympus',public_key,client_id),to=olympus)
+		output('inside client run' + str(client_id) + ' ---- ' + str(self))
+
+		send(('register_client_at_olympus', public_key, client_id), to=olympus)
 		await(some(received(('client_registered_at_olympus',), from_=olympus)))
-		send(('get_current_active_configuration',), to=olympus)
-		#await(received(('current_active_configuration',), from_=olympus))
-		
-		operations = {}
+		output("inside client after registration " + str(self))
+
+		send(('get_current_active_configuration_from_olympus',), to=olympus)
+		output("olympus address is " + str(olympus))
+		await(some(received(('received_active_configuration_at_client', _), from_=olympus)))
+
+		output("performing operations")
+		operations = getWorkLoad()
 		for operation in operations:
-			send(('perform_operation',client_id,request_id,),to = head_replica)
+			send(('perform_operation', client_id, request_id,
+				  operation, self,None,None,None), to=head_replica)
 			await(some(received(('perform_operation',), from_=olympus)))
-	
+
+	def pseudorandom_workload_gen(seed, count):
+		random.seed(seed)
+		list_operations = ["put('movie','star')",
+						   "append('movie',' wars')",
+						   "get('movie')",
+						   "put('jedi','luke skywalker)",
+						   "slice('jedi','0:4'); get('jedi')"]
+		list_random_operations = []
+
+		for i in range(count):
+			list_random_operations.append(
+				list_operations[random.randint(0, len(list_operations) - 1)])
+
+		return "; ".join(list_random_operations)
 
 	def getWorkLoad():
 		config = {}
-		with open('config.txt','r') as f:
-		    for line in f:
-		        if line[0] != '#':
-		          (key,sep,val) = line.partition('=')
-		          # if the line does not contain '=', it is invalid and hence ignored
-		          if len(sep) != 0:
-		              val = val.strip()
-		              config[key.strip()] = int(val) if str.isdecimal(val) else val
-		workload =  config.get('workload['+str(0+2)+']')
+		with open('config.txt', 'r') as f:
+			for line in f:
+				if line[0] != '#':
+					(key, sep, val) = line.partition('=')
+					# if the line does not contain '=', it is invalid and hence ignored
+					if len(sep) != 0:
+						val = val.strip()
+						config[key.strip()] = int(
+							val) if str.isdecimal(val) else val
+		workload = config.get('workload[' + str(client_id) + ']')
+		if("pseudorandom" in workload):
+			open_brace_index = workload.find("(")
+			comma_index = workload.find(",")
+			close_brace_index = workload.find(")")
+
+			seed = int(workload[open_brace_index + 1:comma_index].strip())
+			count = int(
+				workload[comma_index + 1:close_brace_index].strip())
+
+			workload = pseudorandom_workload_gen(seed, count)
+
 		workload = workload.split(';')
 		operations = []
-		for i in range(0,len(workload)):
-			item = workload[i]
+		for i in range(0, len(workload)):
+			item = workload[i].strip()
 			print(item)
 			#print("put" in item)
 			operation_dict = {}
-			if "put" in item :
+			if "put" in item:
 				first_occur = item.find("'")
-				#print(first_occur)
-				second_occur = item.find("'",first_occur+1)
-				#print(second_occur)
-				key = item[first_occur+1:second_occur]
-				first_occur = item.find("'",second_occur+1)
-				second_occur = item.find("'",first_occur+1)
-				value = item[first_occur+1:second_occur]
+				# print(first_occur)
+				second_occur = item.find("'", first_occur + 1)
+				# print(second_occur)
+				key = item[first_occur + 1:second_occur].strip()
+				first_occur = item.find("'", second_occur + 1)
+				second_occur = item.find("'", first_occur + 1)
+				value = item[first_occur + 1:second_occur].strip()
 				operation_dict["operation"] = "put"
-				operation_dict["key"]=key
-				operation_dict["value"]=value
+				operation_dict["key"] = key
+				operation_dict["value"] = value
 			elif "append" in item:
 				first_occur = item.find("'")
-				#print(first_occur)
-				second_occur = item.find("'",first_occur+1)
-				#print(second_occur)
-				key = item[first_occur+1:second_occur]
-				first_occur = item.find("'",second_occur+1)
-				second_occur = item.find("'",first_occur+1)
-				value = item[first_occur+1:second_occur]
+				# print(first_occur)
+				second_occur = item.find("'", first_occur + 1)
+				# print(second_occur)
+				key = item[first_occur + 1:second_occur].strip()
+				first_occur = item.find("'", second_occur + 1)
+				second_occur = item.find("'", first_occur + 1)
+				value = item[first_occur + 1:second_occur].strip()
 				operation_dict["operation"] = "append"
-				operation_dict["key"]=key
-				operation_dict["value"]=value
+				operation_dict["key"] = key
+				operation_dict["value"] = value
 			elif "slice" in item:
 				first_occur = item.find("'")
-				#print(first_occur)
-				second_occur = item.find("'",first_occur+1)
-				#print(second_occur)
-				key = item[first_occur+1:second_occur]
-				first_occur = item.find("'",second_occur+1)
-				second_occur = item.find("'",first_occur+1)
-				value = item[first_occur+1:second_occur]
+				# print(first_occur)
+				second_occur = item.find("'", first_occur + 1)
+				# print(second_occur)
+				key = item[first_occur + 1:second_occur].strip()
+				first_occur = item.find("'", second_occur + 1)
+				second_occur = item.find("'", first_occur + 1)
+				value = item[first_occur + 1:second_occur].strip()
 				operation_dict["operation"] = "slice"
-				operation_dict["key"]=key
-				operation_dict["value"]=value
-			elif "get" in item:	
+				operation_dict["key"] = key
+				slice_indices = value.split(":")
+				operation_dict["value1"] = slice_indices[0].strip()
+				operation_dict["value2"] = slice_indices[1].strip()
+			elif "get" in item:
 				first_occur = item.find("'")
-				#print(first_occur)
-				second_occur = item.find("'",first_occur+1)
-				#print(second_occur)
-				key = item[first_occur+1:second_occur]
+				# print(first_occur)
+				second_occur = item.find("'", first_occur + 1)
+				# print(second_occur)
+				key = item[first_occur + 1:second_occur].strip()
 				operation_dict["operation"] = "get"
-				operation_dict["key"]=key
+				operation_dict["key"] = key
 			operations.append(operation_dict)
 		return operations
 
 
-
 def main():
-	T = 1#readFromConfig()
-	client_timer_expiry = 1 
-	total_replica_count = 2*T+1
-	config(channel= Fifo, clock= Lamport)
-	replica_set = new(Replica, num= total_replica_count)
-	olympus = new(Olympus,num=1)
+	T = 1  # readFromConfig()
+	client_timer_expiry = 1
+	total_replica_count = 2 * T + 10
+	config(channel=Fifo, clock=Lamport)
+	replica_set = new(Replica, num=total_replica_count)
+	olympus = new(Olympus, num=1)
 	replica_id = 0
 	for replica in replica_set:
+		setup(replica, (replica_set, replica_id))
 		replica_id = replica_id + 1
-		setup(replica, (replica_set,replica_id))
-	
-	setup(olympus,(T,total_replica_count,replica_set))
+
+	setup(olympus, (T, total_replica_count, replica_set))
 	start(olympus)
 	start(replica_set)
-	
-	clients = new(Client,num=2)
+
+	clients = new(Client, num=1)
 	client_id = 0
 	for new_client in clients:
-		setup(new_client,(client_id,olympus,client_timer_expiry))
+		setup(new_client, (client_id, olympus, client_timer_expiry))
 		client_id = client_id + 1
 	start(clients)
-	
-
-
-    

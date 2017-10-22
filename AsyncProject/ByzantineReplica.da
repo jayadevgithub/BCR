@@ -3,72 +3,253 @@ import nacl.encoding
 import nacl.signing
 import nacl.hash
 import uuid
+import copy
+import random
 from nacl.bindings.utils import sodium_memcmp
 
+
+class History():
+	
+	def __init__(self):
+		self.order_proof_for_each_slot = []
+
+	def add_order_proof_to_history(self,order_proof):
+		self.order_proof_for_each_slot.append(order_proof)
+
+
+class OrderStatement():
+	
+	def __init__(self, slot, operation, replica_id):
+		# todo
+		self.slot = slot
+		self.hash_operation = None
+		self.signed_hash = None
+		self.replica_id = replica_id
+
+
+class ResultProof():
+	#Config_Id =None
+	
+	def __init__(self, operation, replica_Id, result):
+		# todo
+		self.operation = operation
+		self.replica_Id = replica_Id
+		self.result_hash_value = result
+		self.result_signed_value = result
+
+
+class OrderProof():
+	#Config_Id =None
+	
+	def __init__(self, slot, operation, replica_Id):
+		self.slot = slot
+		self.operation = operation
+		self.replica_Id = replica_Id
+		self.order_statements = []
+		#self.Config_Id = Config_Id
+
+	def add_order_statment(self,order_statement):
+		self.order_statements.append(order_statement)
+
+	def set_replica_id_in_order_proof(self,replica_Id):
+		self.replica_Id = replica_Id
+
+
+class Shuttle():
+	
+	def __init__(self, slot, operation):
+		self.order_proof = OrderProof(slot, operation,None)
+		self.result_proofs = []
+
+	def add_order_statement_to_order_proof_in_shuttle(self,order_statement):
+		new_order_statement = copy.copy(order_statement)
+		self.order_proof.add_order_statment(new_order_statement)
+
+	def add_result_proof_to_shuttle(self,result_proof):
+		#new_result_proof = copy.copy(result_proof)
+		self.result_proofs.append(result_proof)
+
+	def get_order_proof_from_shuttle(self):
+		print("inside Shuttle")
+		print(self.order_proof)
+		new_order_proof = copy.copy(self.order_proof)
+		return new_order_proof
+
+
 class Replica(process):
-	#def decrypt_message(msg):
+	# def decrypt_message(msg):
 
-
-	def setup(replica_set:set,replica_id:int):
+	def setup(replica_Set: set, replica_Id: int):
 		self.client_info = {}
 		self.public_key = None
-		self.private_key =None
-		self.data_object = None
-		self.replica_id = None
-		self.mode =None
+		self.private_key = None
+		self.data_object = {}
+		self.replica_id = replica_Id
+		self.mode = None
 		self.result_cache = {}
 		self.is_head_replica = False
-		self.is_hail_replica = False
-		self.replica_set = replica_set
+		self.is_tail_replica = False
+		self.replica_set = []
 		self.history = None
 		self.current_slot_number = 0
 		self.result_cache = {}
+		self.history = History()
+		print("**replica_id"+str(replica_Id))
 
-		if replica_id == 1:
-			isHead = True
-		elif replica_id == len(replica_set):
-			isTail = True
+		if replica_Id == 0:
+			print("inside head_replica")
+			self.is_head_replica = True
+		elif replica_Id == len(replica_Set) - 1:
+			self.is_tail_replica = True
+
+		for replica in replica_Set:
+			self.replica_set.append(replica)
+		print("tick")
+		print(replica_set)
 
 	def is_registered_client(client_id):
-		if client_id in self.client_info :
+		if client_id in self.client_info:
 			return True
 		else:
 			return False
 
-	def check_in_result_cache():
+	def check_in_result_cache(operation):
+		return None
+
+	# addding a new valid client to clientinfo
+	def receive(msg=('add_client_at_replica', current_clock, public_key, client_id), from_=olympus):
+		output('adding client in replica clientinfo at ' + str(self) +
+			   ' client id is ' + str(client_id) + ' at clock ' + str(current_clock))
+		self.client_info[client_id] = public_key
+		send(('client_registered_at_replica', current_clock, self), to=olympus)
+
+	def process_operation(operation):
+		output('inside process operation')
+		print(operation)
+		print(operation["operation"])
+		print(operation["operation"] is 'append')
+		opcode = operation['operation']
+		print(opcode == 'append')
+		if opcode == "put":
+			key = operation["key"]
+			value = operation["value"]
+			self.data_object[key] = value
+			return "OK"
+		elif opcode == "get":
+			key = operation["key"]
+			value = data_object[key]
+			return value
+		elif opcode == "slice":
+			key = operation["key"]
+			if key in data_object:
+				return "Error"
+			index1 = int(operation["value1"])
+			index2 = int(operation["value2"])
+			value = data_object[key]
+			value = value[index1:index2]
+			self.data_object[key] = value
+			return value
+		elif opcode == "append":
+			print("inside append")
+			key = operation["key"]
+			print('key ' +key)
+			if key not in data_object:
+				return "Error"
+			value = operation["value"]
+			value = value + data_object[key]
+			return "OK"
+
+	def get_next_replica():
+		print("replica_set my id is" +str(replica_id))
+		print(replica_set)
+		if replica_id == len(replica_set) - 1:
+			return None  # tail_replica
+		else:
+			return replica_set[replica_id + 1]
+
+	def get_prev_replica():
+		if replica_id == 0:
+			return None  # head_replica
+		else:
+			return replica_set[replica_id - 1]
+
+	def cache_result_at_replica(msg='cache_result'):
 		pass
 
-
-	#addding a new valid client to clientinfo
-	def receive(msg=('add_client_at_replica',current_clock,public_key,client_id),from_=olympus):
-		output('adding client in replica clientinfo at ' + str(self) +' client id is '+ str(client_id) +' at clock '+ str(current_clock) )
-		self.client_info[client_id] = public_key
-		send(('client_registered_at_replica',current_clock,self),to=olympus)
-
-	def receive(msg=('handle_request',client_id,request_id,operation)):
+	def receive(msg=('perform_operation', client_id, request_id, operation, client_process, prev_order_statement, result, result_shuttle)):
 		if is_registered_client(client_id) is False:
-			#error case
+			# error case
 			output('malicious client found')
-		if self.is_head_replica is True:
-			check_in_result_cache(operation)
+		else:
+			output("client processing operation"+str(replica_id))
+			print(operation)
+			print("self.is_head_replica:" +str(self.is_head_replica))
 
+			if check_in_result_cache(operation) is not None:
+				pass
+				# todo
+			elif self.is_head_replica is True:
+				result = process_operation(operation)
+				print(result)
+				print("result")
+				order_proof = OrderProof(
+					current_slot_number, operation, replica_id)
+				order_statement = OrderStatement(
+					current_slot_number, operation, replica_id)
+				print(order_statement)
+				order_proof.add_order_statment(None)
+				
+				history.add_order_proof_to_history(order_proof)
+				print("hunter")
+				result_proof = ResultProof(operation, replica_id, result)
+				print("yo")
+				result_shuttle = Shuttle(current_slot_number,operation)
+				print("yo2")
+				result_shuttle.add_result_proof_to_shuttle(result_proof)
+				print("yo3")
+				result_shuttle.add_order_statement_to_order_proof_in_shuttle(
+					order_statement)
 
-	def receive(msg= ('store_keys',public_key,private_key)):
+				next_replica = get_next_replica()
+				send(('perform_operation', client_id, request_id, operation, client_process,
+				 	  order_statement, result, result_shuttle), to=next_replica)
+				self.current_slot_number = self.current_slot_number + 1
+			else:
+				print("dont")
+				result = process_operation(operation)
+
+				order_proof = result_shuttle.get_order_proof_from_shuttle()
+				print("order_proof")
+				print(order_proof)
+				order_proof.set_replica_id_in_order_proof(replica_id)
+				order_statement = OrderStatement(
+					current_slot_number, operation, replica_id)
+				order_proof.add_order_statment(order_statement)
+				history.add_order_proof_to_history(order_proof)
+				result_proof = ResultProof(operation, replica_id, result)
+
+				result_shuttle.add_result_proof_to_shuttle(result_proof)
+				result_shuttle.add_order_statement_to_order_proof_in_shuttle(
+					order_statement)
+				print("here")
+				if self.is_tail_replica is True:
+					send(('result_shuttle',result_shuttle,result),to=client_process)
+				else:
+					print("inside here")
+					next_replica = get_next_replica()
+					send(('perform_operation', client_id, request_id, operation, client_process,
+				 	  order_statement, result, result_shuttle), to=next_replica)
+				self.current_slot_number = self.current_slot_number + 1
+				# return from result cache
+
+	def receive(msg=('store_keys', public_key, private_key)):
 		self.public_key = public_key
-		self.private_key = private_key 
+		self.private_key = private_key
 		output('yo keys found')
-		send(('KeysFound',),to=self	)
-
-	def receive(msg= ('perform_operation',public_key,private_key)):
-		self.public_key = public_key
-		self.private_key = private_key 
-		output('yo keys found')
-		send(('KeysFound',),to=self	)
-
+		send(('KeysFound',), to=self	)
 
 	def run():
 		await(received(('KeysFound',), from_=self))
 		output("my public_key is ")
 		output("my private_key is ")
-		await( received(('done',), from_=self) )
-		
+		await(received(('done',), from_=self))

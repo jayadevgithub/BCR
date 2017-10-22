@@ -7,5 +7,5 @@ with open('BCR.da', 'w') as outfile:
         with open(fname) as infile:
             outfile.write(infile.read())
 
-call(["/home/jay/Downloads/pyDistAlgo-1.0.9/bin/dar", "./BCR.da"])
+call(["/Users/sai/Courses/Async/pyDistAlgo-1.0.9/bin/dar", "./BCR.da"])
 #print(subprocess.check_output(['/Users/sai/Courses/Async/pyDistAlgo-1.0.9/bin/dar','./BCR.da']))

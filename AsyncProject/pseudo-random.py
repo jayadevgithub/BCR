@@ -16,6 +16,37 @@ def pseudorandom_workload_gen(seed, count):
 		return "; ".join(list_random_operations)
 
 
+def process_operation(operation):
+	output('inside process operation')
+    if operation["operation"] is "put":
+		key = operation["key"]
+		value = operation["value"]
+		data_object[key] = value
+		return "OK"
+    elif operation["operation"] is "get":
+        key = operation["key"]
+        value = data_object[key]
+        return value
+    elif operation["operation"] is "slice":
+        key = operation["key"]
+        if key in data_object:
+            return "Error"
+        index1 = int(operation["value1"])
+        index2 = int(operation["value2"])
+        value = data_object[key]
+        value = value[index1:index2]
+        data_object[key] = value
+        return value
+    elif operation["operation"] is "append":
+        key = operation["key"]
+        if key in data_object:
+            return "Error"
+        value = operation["value"]
+        value = value + data_object[key]
+        return "OK"
+
+
+
 def getWorkLoad():
 		config = {}
 		with open('config.txt','r') as f:
@@ -97,4 +128,6 @@ def getWorkLoad():
 
 
 
-getWorkLoad()
+operations = getWorkLoad()
+for operation in operations:
+	process_operation(operation)
