@@ -10,10 +10,22 @@ import nacl.secret
 import nacl.utils
 import nacl
 from nacl.public import PrivateKey, Box
+import logging
+import datetime
+import time
+
+timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+
+handler = logging.FileHandler(str(timestamp)+'.log')
+handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
 
 
 class Replica(process):
 	# def decrypt_message(msg):
+	
+
 
 	def setup(replica_Set: set, replica_Id: int):
 		self.replica_set_united = replica_Set
@@ -32,6 +44,14 @@ class Replica(process):
 		self.history = History()
 		self.public_keys = None
 		self.global_timer = {}
+
+		self.logger = logging.getLogger("Replica "+str(replica_id))
+		self.logger.setLevel(logging.INFO)
+		#self.handler = logging.FileHandler('test.log')
+		#self.handler.setLevel(logging.INFO)
+		#self.formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+		#self.handler.setFormatter(formatter)
+		self.logger.addHandler(handler)
 
 		if replica_Id == 0:
 			self.is_head_replica = True
@@ -53,15 +73,20 @@ class Replica(process):
 
 	def is_registered_client(client_id):
 		if client_id in self.client_info:
+			logger.info("client_id=%s is registered at replica_id=%s", str(client_id), str(replica_id))
 			return True
 		else:
+			logger.info("client_id=%s is NOT registered at replica_id=%s", str(client_id),str(replica_id))
 			return False
 
 	def check_in_result_cache(client_id,request_id):
+		logger.info("checking if result is found in result cache")
 		cache_key = str(client_id)+str(request_id)
 		if cache_key in result_cache:
+			logger.info("check_in_result_cache:found %s in result cache", str(cache_key))
 			return result_cache[cache_key]
 		else:
+			logger.info("check_in_result_cache: %s is NOT in result cache", str(cache_key))
 			return None
 
 	def get_timeout(timeout_key):
@@ -82,10 +107,13 @@ class Replica(process):
 	def receive(msg=('add_client_at_replica', current_clock, public_key, client_id), from_=olympus):
 		#output('adding client in replica clientinfo at ' + str(self) +
 		#	   ' client id is ' + str(client_id) + ' at clock ' + str(current_clock))
+		logger.info("received: 'add_client_at_replica' with client_id:%s FROM Olympus", str(client_id))
 		self.client_info[client_id] = public_key
 		send(('client_registered_at_replica', current_clock, self), to=olympus)
+		logger.info("sent: 'client_registered_at_replica'- client_id=%s, TO Olympus", str(client_id))
 
 	def process_operation(operation):
+		logger.info("replica_id=%s is processing operations", str(replica_id))
 		opcode = operation['operation']
 		if opcode == "put":
 			key = operation["key"]
@@ -129,6 +157,7 @@ class Replica(process):
 			return replica_set[replica_id - 1]
 
 	def validate_result_shuttle(result_shuttle):
+		logger.info("validating result shuttle")
 		curr_order_proof = result_shuttle.order_proof
 		result_proofs = result_shuttle.result_proofs
 
@@ -150,7 +179,8 @@ class Replica(process):
 			if str(head_replica_result_proof.operation) != str(curr_result_proof.operation) or decode_hash_and_verify(curr_result_proof_hash_digest,curr_result_proof_signed_hash,curr_replica_public_key) is False or match_hash_with_head_replica(curr_result_proof_signed_hash,curr_replica_public_key,head_replica_signed_digest,head_replica_public_key) is False:
 				return "Error"
 			else:
-				print("worked")
+				logger.info("ResultProof validation successful")
+				#print("worked")
 
 		order_statements = curr_order_proof.order_statements
 		head_replica_order_stmt = order_statements[0]
@@ -178,11 +208,14 @@ class Replica(process):
 	# 		pass
 
 	def receive(msg=('perform_operation', client_id, request_id, operation, client_process, prev_order_statement, result, result_shuttle,retransmitted)):
+		logger.info("received: 'perform_operation' with client_id=%s, request_id=%s, operation=%s", str(client_id), str(request_id), str(operation))
 		if is_registered_client(client_id) is False:
 			# error case
-			output('malicious client found')
+			#output('malicious client found')
+			logger.warn("MALICIOUS client found")
 		else:
-			output("client processing operation"+str(replica_id))
+			logger.info("replica_id=%s is processing operation=%s requested by client_id=%s", str(replica_id),str(operation), str(client_id))
+			#output("client processing operation"+str(replica_id))
 			cache_key = str(client_id)+str(request_id)
 			if cache_key in result_cache and result_cache[cache_key] is True:
 				#if the operation is a;ready scheduled ignore the request
@@ -210,6 +243,7 @@ class Replica(process):
 				next_replica = get_next_replica()
 				send(('perform_operation', client_id, request_id, operation, client_process,
 					  order_statement, result, result_shuttle,retransmitted), to=next_replica)
+				logger.info("sent: 'perform_operation' TO next_replica=%s, with client_id=%s, request_id=%s, operation=%s", str(replica_id+1), str(client_id),str(request_id),str(operation))
 				self.current_slot_number = self.current_slot_number + 1
 			else:
 				result = process_operation(operation)
@@ -230,16 +264,20 @@ class Replica(process):
 				if self.is_tail_replica is True:
 					prev_replica = get_prev_replica()
 					send(('result_shuttle',result_shuttle,result),to=client_process)
+					logger.info("sent: 'result_shuttle' TO client_id=%s", str(client_id))
 					
 					if retransmitted is True:
 						#send result,result_proof to all the awaiting replicas
 						send(('retransmitted_request_from_replica_to_head',),to=replica_set_united)
+						logger.info("sent: 'retransmitted_request_from_replica_to_head' TO all the replicas")
 
 					send(('cache_result_shuttle',client_id,request_id,result_shuttle,result),to=prev_replica)
+					logger.info("sent: 'cache_result_shuttle' TO previous replica_id=%s, with client_id=%s, request_id=%s and result_shuttle", str(replica_id-1),str(client_id), str(request_id))
 				else:
 					next_replica = get_next_replica()
 					send(('perform_operation', client_id, request_id, operation, client_process,
 					  order_statement, result, result_shuttle,retransmitted), to=next_replica)
+					logger.info("sent: 'perform_operation' TO next replica_id=%s, with client_id=%s, request_id=%s, operation=%s", str(replica_id+1),str(client_id),str(request_id),str(operation))
 				self.current_slot_number = self.current_slot_number + 1
 				# return from result cache
 
@@ -250,25 +288,30 @@ class Replica(process):
 			return False
 
 	def receive(msg=('initiating_retransmit_request', client_id, request_id, operation, client_process, prev_order_statement, result, result_shuttle)):
+		logger.info("received: 'initiating_retransmit_request' by replica_id=%s, with client_id=%s, request_id=%s, operation=%s", str(replica_id),str(client_id),str(request_id),str(operation))
 		if is_registered_client(client_id) is False:
 			# error case
-			output('malicious client found')
+			#output('malicious client found')
+			logger.warn("MALICIOUS client found")
 		else:
-			output("client processing retransmitted operation"+str(replica_id))
-
+			#output("client processing retransmitted operation"+str(replica_id))
+			logger.info("replica_id=%s is processing the retransmitted operation FROM client_id=%s", str(replica_id), str(client_id))
 			if check_in_result_cache(request_id,client_id) is not None:
 				result_shuttle,result = check_in_result_cache(request_id,client_id)
 				send(('result_shuttle',result_shuttle,result),to=client_process)
+				logger.info("sent: 'result_shuttle' TO client_id=%s, with result shuttle and reslut=%s", str(client_id), str(result))
 				# todo
 			if self.is_head_replica is True:
 				if check_in_order_proof(request_id) is False:
 					#this is a new operation
 					send(('perform_operation', client_id, request_id,operation, self,None,None,None,True), to=head_replica)
+					logger.info("sent: 'perform_operation' with client_id=%s, request_id=%s, operation=%s TO head_replica", str(client_id),str(request_id),str(operation))
 					if await(some(received(('retransmitted_request_from_replica_to_head',), from_=tail_replica))): 
 						#received response before the timer got expired
 						pass
 					elif timeout(self.replica_timeout):
-						output("timeout occurred, provable case of misbehaviour send reconfg request")
+						#output("timeout occurred, provable case of misbehaviour send reconfg request")
+						logger.WARN("TIMEOUT occurred, this is a provable case of misbehaviour. Send reconfiguration request")
 
 				else:
 					#start timer 
@@ -278,38 +321,46 @@ class Replica(process):
 						#received response before the timer got expired
 						pass
 					elif timeout(self.replica_timeout):
-						output("timeout occurred, provable case of misbehaviour send reconfg request")
+						#output("timeout occurred, provable case of misbehaviour send reconfg request")
+						logger.WARN("TIMEOUT occurred, this is a provable case of misbehaviour. Send reconfiguration request")
 			else:
 				#for non head replicas
 				#start timer and send the request to head
 				#send(('start_timer_for_request',client_id,request_id),to=head_replica)
 				send(('perform_operation', client_id, request_id, operation, self,None,None,None,True), to=head_replica)
+				logger.info("sent: 'perform_operation' with client_id=%s, request_id=%s, operation=%s TO head_replica")
 				if await(some(received(('retransmitted_request_from_replica_to_head',), from_=tail_replica))): 
 					#received response before the timer got expired
 					#send(('served_retransmit_request',result,result_shuttle,current_clock))
 					pass
 				elif timeout(self.replica_timeout):
-					output("timeout occurred, provable case of misbehaviour send reconfg request")
+					#output("timeout occurred, provable case of misbehaviour send reconfg request")
+					logger.WARN("TIMEOUT occurred, this is a provable case of misbehaviour. Send reconfiguration request")
 					
 	#def receive(msg=('retransmitted_request_from_replica_to_head',result,result_shuttle,client_process)):
 	#	send(('result_shuttle',result,result_shuttle),to=client_process)
 
 	def receive(msg=('cache_result_shuttle',client_id,request_id, result_shuttle, result)):
+		logger.info("received: 'cache_result_shuttle' with client_id=%s, request_id=%s, result_shuttle and result=%s", str(client_id), str(request_id), str(result))
 		cache_key = str(client_id)+str(request_id)
 		result_cache[cache_key] = CachedResult(result,result_shuttle)
 		if self.is_head_replica is False:
 			prev_replica = get_prev_replica()
 			send(('cache_result_shuttle',client_id,request_id,result_shuttle,result),to=prev_replica)
+			logger.info("sent: 'cache_result_shuttle' with client_id=%s, request_id=%s, result=%s TO previous replica_id=%s", str(client_id), str(request_id), str(result), str(replica_id - 1))
 		else:
 			validate_result_shuttle(result_shuttle)
-			output("Caching done for all replicas for request_id "+str(request_id)+" and client_id "+str(client_id))
+			#output("Caching done for all replicas for request_id "+str(request_id)+" and client_id "+str(client_id))
+			logger.info("CACHING done for all replicas for request_id=%s FROM client_id=%s", str(request_id), str(client_id))
 
 		
 	def receive(msg=('store_keys', public_key, private_key,public_keys)):
+		logger.info("received: 'store_keys' from Olympus")
 		self.public_key = public_key
 		self.private_key = private_key
 		self.public_keys = public_keys
 		send(('KeysFound',), to=self)
+		logger.info("sent: 'KeysFound' to self")
 
 	def run():
 		await(received(('KeysFound',), from_=self))

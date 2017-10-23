@@ -21,8 +21,16 @@ class Client(process):
 		self.client_timeout = 0
 		self.replica_public_keys = []
 
-	def receive(msg=('received_active_configuration_at_client', replica_set, public_keys), from_=olympus):
+		self.logger = logging.getLogger("Client "+str(client_id))
+		self.logger.setLevel(logging.INFO)
+		#self.handler = logging.FileHandler('test.log')
+		#self.handler.setLevel(logging.INFO)
+		#self.formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+		#self.handler.setFormatter(formatter)
+		self.logger.addHandler(handler)
 
+	def receive(msg=('received_active_configuration_at_client', replica_set, public_keys), from_=olympus):
+		logger.info("received: 'received_active_configuration_at_client' FROM Olympus")
 		count = 0
 		for i in range(0,len(replica_set)):
 			replica = replica_set[i]
@@ -37,10 +45,13 @@ class Client(process):
 			self.replica_public_keys.append(public_key)
 
 	def receive(msg=('client_registered_at_olympus',), from_=olympus):
-		output(str(client_id) + 'is successfully registered yoo ')
+		logger.info("received: 'client_registered_at_olympus' FROM Olympus")
+		logger.info("client_id=%s is successfully registered", str(client_id))
+		#output(str(client_id) + 'is successfully registered yoo ')
 
 	def receive(msg=('result_shuttle',result_shuttle,result), from_=tail_replica):
-		print("processing result result_shuttle")
+		logger.info("received: 'result_shuttle' FROM tail_replica with result=%s", str(result))
+		logger.info("processing the result and result_shuttle")
 		count = 0
 		result_proofs = result_shuttle.result_proofs
 		for result_proof in result_proofs:
@@ -51,42 +62,53 @@ class Client(process):
 		if(count < self.T+1): pass
 			#failure
 		else:
-			output('verified result')
+			logger.info("verified result")
+			#output('verified result')
 			send(('verified_result',), to= self)
+			logger.info("sent: 'verified_result' TO self")
 
 
 	def run():
 
 		send(('register_client_at_olympus', public_key, client_id), to=olympus)
+		logger.info("sent: 'register_client_at_olympus' with client_id=%s TO Olympus", str(client_id))
 		await(some(received(('client_registered_at_olympus',), from_=olympus)))
-		output("inside client after registration " + str(self))
+		#output("inside client after registration " + str(self))
+		logger.info("client_id=%s registered at Olympus", str(client_id))
 
 		send(('get_current_active_configuration_from_olympus',), to=olympus)
+		logger.info("sent: 'get_current_active_configuration_from_olympus' TO Olympus")
 		await(some(received(('received_active_configuration_at_client', _,_), from_=olympus)))
 
-		output("performing operations")
+		logger.info("Performing operations")
+		#output("performing operations")
 		operations = getWorkLoad()
 		#print(self.client_timeout)
 		for operation in operations:
 			send(('perform_operation', client_id, request_id,
 				  operation, self,None,None,None,None), to=head_replica)
+			logger.info("sent: 'perform_operation' with client_id=%s, request_id=%s TO head_replica", str(client_id),str(request_id))
 			if await(some(received(('result_shuttle',_,_), from_=tail_replica))): 
-				print("after await")
+				#print("after await")
 				await(some(received(('verified_result',), from_=self)))
 			elif timeout(self.client_timeout):
 				#current_clock = logical_clock()
-				output("timeout occurred, sending request to all replicas")
+				#output("timeout occurred, sending request to all replicas")
+				logger.warn("TIMEOUT occurred, retransmitting request to all replicas")
 				send(('initiating_retransmit_request', client_id, request_id, operation, self,None,None,None), to=replica_set)
+				logger.info("sent: 'initiating_retransmit_request' with client_id=%s, request_id=%s operation=%s TO all replicas", str(client_id), str(request_id), str(operation))
 				if await(some(received(('result_shuttle',_,_), from_=replica_set))):
-					print("after await")
+					#print("after await")
 					await(some(received(('verified_result',), from_=self)))
 				elif timeout(self.client_timeout):
-					output("error provable case of misbehaviour")
+					logger.error("provable case of misbehaviour")
+					#output("error provable case of misbehaviour")
 
 			self.request_id = self.request_id + 1
 		await(some(received(('done',), from_=self)))
 
 	def pseudorandom_workload_gen(seed, count):
+		logger.info("generating pseudorandom workload")
 		random.seed(seed)
 		list_operations = ["put('movie','star')",
 						   "append('movie',' wars')",
@@ -115,8 +137,8 @@ class Client(process):
 		workload = config.get('workload[' + str(client_id) + ']')
 		#client_timeout = 3000
 		self.client_timeout = config.get('client_timeout')
-
-		if("pseudorandom" in workload):
+		logger.info("workload=%s", str(workload))
+		if "pseudorandom" in workload:
 			open_brace_index = workload.find("(")
 			comma_index = workload.find(",")
 			close_brace_index = workload.find(")")
@@ -183,6 +205,10 @@ class Client(process):
 
 
 def main():
+	logger = logging.getLogger("Main Module")
+	logger.setLevel(logging.INFO)
+	logger.addHandler(handler)
+
 	T = 1  # readFromConfig()
 	client_timer_expiry = 1
 	total_replica_count = 2 * T + 1
@@ -195,12 +221,18 @@ def main():
 		replica_id = replica_id + 1
 
 	setup(olympus, (T, total_replica_count, replica_set))
+	logger.info("Starting Olympus")
 	start(olympus)
+	logger.info("Olympus started")
+	logger.info("Starting %s Replicas", str(total_replica_count))
 	start(replica_set)
+	logger.info("%s Replicas started", str(total_replica_count))
 
-	clients = new(Client, num=10)
+	clients = new(Client, num=1)
 	client_id = 0
 	for new_client in clients:
 		setup(new_client, (client_id, olympus, client_timer_expiry,T))
 		client_id = client_id + 1
+	logger.info("Starting %s Clients", str(len(clients)))
 	start(clients)
+	logger.info("%s Clients started", str(len(clients)))

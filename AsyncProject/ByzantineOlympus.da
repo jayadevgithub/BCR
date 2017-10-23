@@ -7,6 +7,14 @@ class Olympus(process):
 		self.public_keys = []
 		self.private_keys = []
 
+		self.logger = logging.getLogger("Olumpus:")
+		self.logger.setLevel(logging.INFO)
+		#self.handler = logging.FileHandler('test.log')
+		#self.handler.setLevel(logging.INFO)
+		#self.formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+		#self.handler.setFormatter(formatter)
+		self.logger.addHandler(handler)
+
 		count = 0
 		for replica in replica_Set:
 			self.replica_set.append(replica)
@@ -22,6 +30,7 @@ class Olympus(process):
 		#output('generating keys done at olympus')
 
 	def receive(msg=('register_client_at_olympus', public_key, client_id), from_=client):
+		logger.info("received: 'register_client_at_olympus' FROM client_id=%s", str(client_id))
 		--request
 		current_clock = logical_clock()
 		client_info[client_id] = public_key
@@ -30,6 +39,7 @@ class Olympus(process):
 		--criticalsection
 		send(('add_client_at_replica', current_clock,
 			  public_key, client_id), to=replica_set)
+		logger.info("sent: 'add_client_at_replica'-client_id=%s, TO all the replicas", str(client_id))
 		await(each(replica in replica_set,
 				   has=some(
 					   received(
@@ -41,6 +51,7 @@ class Olympus(process):
 		--release
 		#output('olympus done with this ' + str(client_id) + str(client))
 		send(('client_registered_at_olympus',), to=client)
+		logger.info("sent: 'client_registered_at_olympus' TO client_id=%s", str(client_id))
 	# def receive(msg=('client_added',),from_)
 
 	def initConfiguration(T, replica_set):
@@ -56,13 +67,16 @@ class Olympus(process):
 			private_keys.append(private_key)
 
 	def receive(msg=('get_current_active_configuration_from_olympus',), from_=client):
-		output("inside get active configuration from olympus at olympus " + str(client))
+		logger.info("received: 'get_current_active_configuration_from_olympus' FROM client_id=%s", str(client))
+		#output("inside get active configuration from olympus at olympus " + str(client))
 		send(('received_active_configuration_at_client', replica_set,public_keys), to=client)
+		logger.info("sent: 'received_active_configuration_at_client' TO client_id=%s", str(client))
 
 	def run():
-		output("inside olympus run")
+		#output("inside olympus run")
 		c = logical_clock()
 		for i in range(0, 2 * T + 1):
 			send(
 				('store_keys', self.public_keys[i], self.private_keys[i],self.public_keys), to=replica_set[i])
+			logger.info("sent: 'store_keys' TO replica_id=%s", str(i))
 		await(received(('done',), from_=self))
