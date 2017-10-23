@@ -1,0 +1,109 @@
+def encode_hash(msg,private_key):
+	#print("inside encode_hash")
+	#print(msg)
+	HASHER = nacl.hash.sha256
+	msg_in_bytes = str(msg).encode('utf-8')	
+
+	#print("digest:")
+	dgst = HASHER(msg_in_bytes, encoder=nacl.encoding.HexEncoder)
+	#print(dgst)
+	#print("signed_message \n")
+	signed_message = private_key.sign(dgst)
+	#print(signed_message)
+	#print("\n")
+	return dgst,signed_message
+
+
+def decode_hash_and_verify(hash_digest,signed_message,public_key):
+	#print("inside decode_hash_and_verify")
+	new_digest = public_key.verify(signed_message)
+	#print(hash_digest)
+	#print(new_digest)
+	#print("\n\n\n")
+	if sodium_memcmp(hash_digest, new_digest):
+		return True
+	else:
+		return False
+
+def match_hash_with_head_replica(replica_signed_hash,replica_public_key,head_signed_hash,head_public_key):
+	#print("inside match_hash_with_head_replica")
+	replica_msg_digest = replica_public_key.verify(replica_signed_hash)
+	head_msg_digest = head_public_key.verify(head_signed_hash)
+	if sodium_memcmp(replica_msg_digest, head_msg_digest):
+		return True
+	else:
+		return False
+
+
+class History():
+	
+	def __init__(self):
+		self.order_proof_for_each_slot = []
+
+	def add_order_proof_to_history(self,order_proof):
+		self.order_proof_for_each_slot.append(order_proof)
+
+
+class CachedResult():
+
+	def __init__(self,result,result_shuttle):
+		self.result = result
+		self.result_shuttle = result_shuttle
+
+class OrderStatement():
+	
+	def __init__(self, slot, operation, replica_id,private_key):
+		# todo
+		
+		concatenated_msg = str(slot) + str(operation)
+		self.hash_operation ,self.signed_hash  = encode_hash(concatenated_msg,private_key)
+		self.replica_id = replica_id
+
+
+class ResultProof():
+	#Config_Id =None
+	
+	def __init__(self, operation, replica_id, result,private_key):
+		# todo
+		self.operation = operation
+		self.replica_id = replica_id
+		self.result_hashed_value,self.result_signed_value  = encode_hash(result,private_key)
+		#print(self.result_hashed_value)
+		#print(self.result_signed_value)
+
+class OrderProof():
+	#Config_Id =None
+	
+	def __init__(self, slot, operation, replica_Id):
+		self.slot = slot
+		self.operation = operation
+		self.replica_Id = replica_Id
+		self.order_statements = []
+		#self.Config_Id = Config_Id
+
+	def add_order_statment(self,order_statement):
+		self.order_statements.append(order_statement)
+
+	def set_replica_id_in_order_proof(self,replica_Id):
+		self.replica_Id = replica_Id
+
+
+class Shuttle():
+	
+	def __init__(self, slot, operation):
+		self.order_proof = OrderProof(slot, operation,None)
+		self.result_proofs = []
+
+	def add_order_statement_to_order_proof_in_shuttle(self,order_statement):
+		new_order_statement = copy.copy(order_statement)
+		self.order_proof.add_order_statment(new_order_statement)
+
+	def add_result_proof_to_shuttle(self,result_proof):
+		#new_result_proof = copy.copy(result_proof)
+		self.result_proofs.append(result_proof)
+
+	def get_order_proof_from_shuttle(self):
+		
+		new_order_proof = copy.copy(self.order_proof)
+		return new_order_proof
+

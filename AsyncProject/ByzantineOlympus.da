@@ -1,22 +1,32 @@
 
 class Olympus(process):
 
-	def setup(T: int, count: int, replica_set: set):
+	def setup(T: int, count: int, replica_Set: set):
 		self.client_info = {}
-		self.replica_set = replica_set
+		self.replica_set = []
 		self.public_keys = []
 		self.private_keys = []
+
+		count = 0
+		for replica in replica_Set:
+			self.replica_set.append(replica)
+			if count == 0:
+				self.head_replica = replica
+			elif count == len(replica_Set) - 1:
+				self.tail_replica = replica
+			count = count + 1
+
 		#output('in setup olympus')
 		initConfiguration(T, replica_set)
 
-		output('generating keys done at olympus')
+		#output('generating keys done at olympus')
 
 	def receive(msg=('register_client_at_olympus', public_key, client_id), from_=client):
 		--request
 		current_clock = logical_clock()
 		client_info[client_id] = public_key
-		output('inside olympus ' + str(client_id) + str(current_clock))
-		output(current_clock)
+		#output('inside olympus ' + str(client_id) + str(current_clock))
+		#output(current_clock)
 		--criticalsection
 		send(('add_client_at_replica', current_clock,
 			  public_key, client_id), to=replica_set)
@@ -29,30 +39,30 @@ class Olympus(process):
 				   )  # outer each
 			  )  # await
 		--release
-		output('olympus done with this ' + str(client_id) + str(client))
+		#output('olympus done with this ' + str(client_id) + str(client))
 		send(('client_registered_at_olympus',), to=client)
 	# def receive(msg=('client_added',),from_)
 
 	def initConfiguration(T, replica_set):
+#		HASHER = nacl.hash.sha256
 		self.T = T  # readFromConfig()
 		for i in range(0, 2 * T + 1):
-			private_key = nacl.signing.SigningKey.generate()
+			key = nacl.utils.random(nacl.secret.SecretBox.KEY_SIZE)
+			#print("key :"+str(key))
+			naclObject = nacl.signing.SigningKey(key)
+			private_key = naclObject.generate()
 			public_key = private_key.verify_key
 			public_keys.append(public_key)
 			private_keys.append(private_key)
 
-	# def receive(msg= ('client_registered_at_replica',),from_=client):
-	#	output("client successfully registered olympus")
-
 	def receive(msg=('get_current_active_configuration_from_olympus',), from_=client):
 		output("inside get active configuration from olympus at olympus " + str(client))
-		send(('received_active_configuration_at_client', replica_set,public_keys,private_keys), to=client)
+		send(('received_active_configuration_at_client', replica_set,public_keys), to=client)
 
 	def run():
 		output("inside olympus run")
 		c = logical_clock()
 		for i in range(0, 2 * T + 1):
 			send(
-				('store_keys', self.public_keys[i], self.private_keys[i]), to=replica_set)
-			pass
+				('store_keys', self.public_keys[i], self.private_keys[i],self.public_keys), to=replica_set[i])
 		await(received(('done',), from_=self))

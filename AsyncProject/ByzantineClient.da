@@ -1,25 +1,11 @@
-
-
-def readFromConfig():
-	config = {}
-	with open('config.txt', 'r') as f:
-		for line in f:
-			if line[0] != '#':
-				(key, sep, val) = line.partition('=')
-				# if the line does not contain '=', it is invalid and hence ignored
-				if len(sep) != 0:
-					val = val.strip()
-					config[key.strip()] = int(
-						val) if str.isdecimal(val) else val
-	print(config)
-
-
 class Client(process):
-	def generateCryptoKeys():
-		self.private_key = nacl.signing.SigningKey.generate()
+	def generate_crypto_keys():
+		key = nacl.utils.random(nacl.secret.SecretBox.KEY_SIZE)
+		naclObject = nacl.signing.SigningKey(key)
+		self.private_key = naclObject.generate()
 		self.public_key = private_key.verify_key
 
-	def setup(client_id: int, olympus: Olympus, client_timer_expiry: int):
+	def setup(client_id: int, olympus: Olympus, client_timer_expiry: int,T:int):
 
 		self.olympus = olympus
 		self.client_id = client_id  # str(uuid.uuid4())
@@ -28,76 +14,77 @@ class Client(process):
 		self.public_key = None
 		self.head_replica = None
 		self.tail_replica = None
+		self.T = T
 		self.replica_set = []
-		generateCryptoKeys()
+		generate_crypto_keys()
 		self.client_timer_expiry = client_timer_expiry
 		self.client_timeout = 0
 		self.replica_public_keys = []
 
-	# def getCurrentConfiguration():
 	def receive(msg=('received_active_configuration_at_client', replica_set, public_keys), from_=olympus):
 
-		output("inside get current active config at client" + str(self))
-		output("olympus address is " + str(olympus) + " at client " + str(self))
-		print(replica_set)
-		print(type(replica_set))
 		count = 0
-		for replica in replica_set:
+		for i in range(0,len(replica_set)):
+			replica = replica_set[i]
 			self.replica_set.append(replica)
 			if count == 0:
 				self.head_replica = replica
 			elif count == len(replica_set) - 1:
 				self.tail_replica = replica
-			output("yo found my replicas at client")
 			count = count + 1
 
 		for public_key in public_keys:
-			self.replica_public_keys.append[public_key]
+			self.replica_public_keys.append(public_key)
 
 	def receive(msg=('client_registered_at_olympus',), from_=olympus):
 		output(str(client_id) + 'is successfully registered yoo ')
 
 	def receive(msg=('result_shuttle',result_shuttle,result), from_=tail_replica):
-		print("after shuttled")
-		print(result_shuttle,result)
+		print("processing result result_shuttle")
 		count = 0
-		for result_proof in result_shuttle:
-			replica_public_key = replica_public_keys[result_proof.replica_Id]
-			if(decode_hash(result_proof.result_hash_value, result_proof.result_signed_value, replica_public_key)):
+		result_proofs = result_shuttle.result_proofs
+		for result_proof in result_proofs:
+			replica_public_key = replica_public_keys[result_proof.replica_id]
+			if(decode_hash_and_verify(result_proof.result_hashed_value, result_proof.result_signed_value, replica_public_key)):
 				count += 1
 
-		if(count < olympus.T+1): pass
-			#fialure
+		if(count < self.T+1): pass
+			#failure
 		else:
 			output('verified result')
 			send(('verified_result',), to= self)
 
 
 	def run():
-		output('inside client run' + str(client_id) + ' ---- ' + str(self))
 
 		send(('register_client_at_olympus', public_key, client_id), to=olympus)
 		await(some(received(('client_registered_at_olympus',), from_=olympus)))
 		output("inside client after registration " + str(self))
 
 		send(('get_current_active_configuration_from_olympus',), to=olympus)
-		output("olympus address is " + str(olympus))
-		await(some(received(('received_active_configuration_at_client', _), from_=olympus)))
+		await(some(received(('received_active_configuration_at_client', _,_), from_=olympus)))
 
 		output("performing operations")
 		operations = getWorkLoad()
-		print(self.client_timeout)
+		#print(self.client_timeout)
 		for operation in operations:
 			send(('perform_operation', client_id, request_id,
-				  operation, self,None,None,None), to=head_replica)
-			if await(some(received(('result_shuttle',_,_), from_=olympus))): 
+				  operation, self,None,None,None,None), to=head_replica)
+			if await(some(received(('result_shuttle',_,_), from_=tail_replica))): 
 				print("after await")
-				await(some(received(('verified_result',__), from_=self)))
-				pass
+				await(some(received(('verified_result',), from_=self)))
 			elif timeout(self.client_timeout):
+				#current_clock = logical_clock()
 				output("timeout occurred, sending request to all replicas")
-				send(('initiating_retransmit_request', client_id, request_id, operation, self), to=replica_set)
-				await(some(received(('served_retransmit_request',), from_=replica_set)))
+				send(('initiating_retransmit_request', client_id, request_id, operation, self,None,None,None), to=replica_set)
+				if await(some(received(('result_shuttle',_,_), from_=replica_set))):
+					print("after await")
+					await(some(received(('verified_result',), from_=self)))
+				elif timeout(self.client_timeout):
+					output("error provable case of misbehaviour")
+
+			self.request_id = self.request_id + 1
+		await(some(received(('done',), from_=self)))
 
 	def pseudorandom_workload_gen(seed, count):
 		random.seed(seed)
@@ -144,8 +131,6 @@ class Client(process):
 		operations = []
 		for i in range(0, len(workload)):
 			item = workload[i].strip()
-			print(item)
-			#print("put" in item)
 			operation_dict = {}
 			if "put" in item:
 				first_occur = item.find("'")
@@ -213,9 +198,9 @@ def main():
 	start(olympus)
 	start(replica_set)
 
-	clients = new(Client, num=1)
+	clients = new(Client, num=3)
 	client_id = 0
 	for new_client in clients:
-		setup(new_client, (client_id, olympus, client_timer_expiry))
+		setup(new_client, (client_id, olympus, client_timer_expiry,T))
 		client_id = client_id + 1
 	start(clients)
