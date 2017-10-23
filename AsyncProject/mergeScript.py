@@ -1,7 +1,7 @@
 from subprocess import call
 #open('BCR.da', 'w').close()
 #subprocess.check_output(['ls','-l']) #all that is technically needed...
-filenames = ['ByzantineReplica.da', 'ByzantineOlympus.da', 'ByzantineClient.da']
+filenames = ['ByzantineReplica.da','ByzantineHelper.da', 'ByzantineOlympus.da', 'ByzantineClient.da']
 with open('BCR.da', 'w') as outfile:
     for fname in filenames:
         with open(fname) as infile:

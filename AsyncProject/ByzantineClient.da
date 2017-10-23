@@ -198,7 +198,7 @@ def main():
 	start(olympus)
 	start(replica_set)
 
-	clients = new(Client, num=3)
+	clients = new(Client, num=10)
 	client_id = 0
 	for new_client in clients:
 		setup(new_client, (client_id, olympus, client_timer_expiry,T))

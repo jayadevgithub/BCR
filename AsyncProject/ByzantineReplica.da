@@ -94,11 +94,13 @@ class Replica(process):
 			return "OK"
 		elif opcode == "get":
 			key = operation["key"]
+			if key not in data_object:
+				return "Error"
 			value = data_object[key]
 			return value
 		elif opcode == "slice":
 			key = operation["key"]
-			if key in data_object:
+			if key not in data_object:
 				return "Error"
 			index1 = int(operation["value1"])
 			index2 = int(operation["value2"])
