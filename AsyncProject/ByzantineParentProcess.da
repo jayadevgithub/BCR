@@ -1,0 +1,64 @@
+
+
+class ParentProcess(process):
+
+	def setup(total_replica_count:int):
+		self.operations_result_list =[]
+		self.logger = logging.getLogger("ParentProcess ")
+		self.logger.setLevel(logging.INFO)
+		self.logger.addHandler(handler)
+		self.data_object = {}
+		self.global_result_of_operations = {}
+		self.global_seq_id = 0
+
+	def receive(msg=('get_result_from_parent_process', globalseqid), from_=client):
+		logger.info("received: 'get_result_from_parent_process' FROM client, global_sequence_id=%s", str(globalseqid))
+		result = self.global_result_of_operations[str(globalseqid)]
+		logger.info("presult=%s", str(result))
+		send(('parent_sent_result', result), to=client)
+		logger.info("sent: 'parent_sent_result' TO client, with result=%s", str(result))
+
+	def receive(msg=('parent_perform_operation',client_id, request_id, operation), from_=client):
+		logger.info("received: 'parent_perform_operation' FROM client, operation=%s", str(operation))
+		result = process_operation(operation)
+		global_result_of_operations[str(global_seq_id)] = result
+		self.global_seq_id += 1
+		send(('parent_performed_operation',global_seq_id-1),to=client)
+		logger.info("sent: 'parent_performed_operation', operation=%s, result=%s", str(operation), str(result))
+		logger.info("global result=%s", str(global_result_of_operations))
+		
+	def process_operation(operation):
+		logger.info("ParentProcess is performing the operation=%s ", str(operation))
+		opcode = operation['operation']
+		if opcode == "put":
+			key = operation["key"]
+			value = operation["value"]
+			self.data_object[key] = value
+			return "OK"
+		elif opcode == "get":
+			key = operation["key"]
+			if key not in data_object:
+				return "Error"
+			value = data_object[key]
+			return value
+		elif opcode == "slice":
+			key = operation["key"]
+			if key not in data_object:
+				return "Error"
+			index1 = int(operation["value1"])
+			index2 = int(operation["value2"])
+			value = data_object[key]
+			value = value[index1:index2]
+			self.data_object[key] = value
+			return value
+		elif opcode == "append":
+			key = operation["key"]
+			if key not in data_object:
+				return "Error"
+			value = operation["value"]
+			value = value + data_object[key]
+			return "OK"
+
+
+	def run():
+		await(received(('done'), from_=self))
