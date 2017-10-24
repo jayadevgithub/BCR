@@ -6,7 +6,13 @@ class ParentProcess(process):
 		self.operations_result_list =[]
 		self.logger = logging.getLogger("ParentProcess ")
 		self.logger.setLevel(logging.INFO)
+		#self.logger.addHandler(handler)
+		self.handler = logging.FileHandler(str(timestamp)+'_ParentProcess.log')
+		self.handler.setLevel(logging.INFO)
+		self.formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+		self.handler.setFormatter(formatter)
 		self.logger.addHandler(handler)
+
 		self.data_object = {}
 		self.global_result_of_operations = {}
 		self.global_seq_id = 0

@@ -5,8 +5,9 @@ class Client(process):
 		self.private_key = naclObject.generate()
 		self.public_key = private_key.verify_key
 
-	def setup(client_id: int, olympus: Olympus, client_timer_expiry: int,T:int):
+	def setup(client_id: int, olympus: Olympus, parent_process: ParentProcess,client_timer_expiry: int,T:int):
 
+		self.parent_process = parent_process
 		self.olympus = olympus
 		self.client_id = client_id  # str(uuid.uuid4())
 		self.request_id = 0
@@ -20,14 +21,28 @@ class Client(process):
 		self.client_timer_expiry = client_timer_expiry
 		self.client_timeout = 0
 		self.replica_public_keys = []
-
+		self.global_seq_id = 0
+		self.result_from_parent_process = None
+		self.retransmit_id = 0
 		self.logger = logging.getLogger("Client "+str(client_id))
 		self.logger.setLevel(logging.INFO)
-		#self.handler = logging.FileHandler('test.log')
-		#self.handler.setLevel(logging.INFO)
-		#self.formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-		#self.handler.setFormatter(formatter)
+		self.handler = logging.FileHandler('_client.log')
+		#self.handler = logging.FileHandler(str(timestamp)+'_client.log')
+		self.handler.setLevel(logging.INFO)
+		self.formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+		self.handler.setFormatter(formatter)
 		self.logger.addHandler(handler)
+		self.switch = 0
+		self.retransmit_switch = 0
+		self.parent_request_switch = 0
+		self.verified_result = {}
+
+	def is_verified_result(client_id,request_id):
+		cache_key = str(client_id)+str(request_id)
+		if cache_key in verified_result:
+			return True
+		else:
+			return False
 
 	def receive(msg=('received_active_configuration_at_client', replica_set, public_keys), from_=olympus):
 		logger.info("received: 'received_active_configuration_at_client' FROM Olympus")
@@ -49,24 +64,48 @@ class Client(process):
 		logger.info("client_id=%s is successfully registered", str(client_id))
 		#output(str(client_id) + 'is successfully registered yoo ')
 
+	def receive(msg=('parent_sent_result', result_parent), from_=parent_process):
+		logger.info("received: 'parent_sent_result'")
+		self.result_from_parent_process = result_parent
+		self.switch = 2
+
 	def receive(msg=('result_shuttle',result_shuttle,result), from_=tail_replica):
 		logger.info("received: 'result_shuttle' FROM tail_replica with result=%s", str(result))
-		logger.info("processing the result and result_shuttle")
-		count = 0
-		result_proofs = result_shuttle.result_proofs
-		for result_proof in result_proofs:
-			replica_public_key = replica_public_keys[result_proof.replica_id]
-			if(decode_hash_and_verify(result_proof.result_hashed_value, result_proof.result_signed_value, replica_public_key)):
-				count += 1
+		if is_verified_result(request_id,client_id) is False:
+			cache_key = str(client_id)+str(request_id)
+			self.verified_result[cache_key] = True
+			#output("received: 'result_shuttle' FROM tail_replica with result"+ str(result)+" client_id "+str(client_id)+" with seq id"+str(self.global_seq_id))
+			logger.info("processing the result and result_shuttle")
+			count = 0
+			result_proofs = result_shuttle.result_proofs
+			for result_proof in result_proofs:
+				replica_public_key = replica_public_keys[result_proof.replica_id]
+				if(decode_hash_and_verify(result_proof.result_hashed_value, result_proof.result_signed_value, replica_public_key)):
+					count += 1
 
-		if(count < self.T+1): pass
-			#failure
-		else:
-			logger.info("verified result")
-			#output('verified result')
-			send(('verified_result',), to= self)
-			logger.info("sent: 'verified_result' TO self")
+			send(('get_result_from_parent_process', self.global_seq_id), to=parent_process)
+			#output("client_id " +str(client_id) +" has received GLobal seq id "+str(global_seq_id))
 
+			self.switch == 1
+			await(self.switch == 2)
+			logger.info("seq=%s, result_from_parent_process=%s, result=%s", str(self.global_seq_id),str(self.result_from_parent_process), str(result))
+
+			if(count < self.T+1): pass
+				#failure
+			else:
+				logger.info("verified result for client_id:%s,request_id:%s ",str(client_id),str(request_id))
+				#output('verified result')
+				#logger.info("sent: 'verified_result' TO self")
+			self.switch = 2
+			self.retransmit_switch = 2
+			#output(" verified the result")
+
+	def receive(msg=('parent_performed_operation', globalseqid), from_=parent_process):
+		logger.info("received: 'parent_performed_operation' from parent_process")
+				
+		self.global_seq_id = globalseqid
+		#output("client_id " +str(client_id) +" has received GLobal seq id "+str(global_seq_id)+" \n")
+		self.parent_request_switch = 2
 
 	def run():
 
@@ -81,40 +120,52 @@ class Client(process):
 		await(some(received(('received_active_configuration_at_client', _,_), from_=olympus)))
 
 		logger.info("Performing operations")
-		#output("performing operations")
 		operations = getWorkLoad()
-		#print(self.client_timeout)
 		for operation in operations:
-			send(('perform_operation', client_id, request_id,
-				  operation, self,None,None,None,None), to=head_replica)
 			logger.info("sent: 'perform_operation' with client_id=%s, request_id=%s TO head_replica", str(client_id),str(request_id))
-			if await(some(received(('result_shuttle',_,_), from_=tail_replica))): 
-				#print("after await")
-				await(some(received(('verified_result',), from_=self)))
+			
+			
+			send(('parent_perform_operation', client_id, request_id, operation), to=parent_process)
+			self.parent_request_switch = 1
+			await(self.parent_request_switch == 2)
+
+
+			self.switch = 1
+			self.retransmit_switch = 1
+			send(('perform_operation', client_id, request_id,
+				  operation, self,None,None,None,None,retransmit_id), to=head_replica)
+
+			logger.info("sent: 'parent_verify' to parent_process")
+			#print("client_timeout "+str(client_timeout))
+			if await(self.switch == 2):
+				logger.error("operation:%s completed done by the client:%s",str(operation),str(client_id))
+				#output(" got the iddd for client_id "+str(client_id)+" for request_id "+str(request_id) + " gs "+str(global_seq_id) )
 			elif timeout(self.client_timeout):
-				#current_clock = logical_clock()
-				#output("timeout occurred, sending request to all replicas")
+				output("TIMEOUT occurred, retransmitting request to all replicas")
 				logger.warn("TIMEOUT occurred, retransmitting request to all replicas")
-				send(('initiating_retransmit_request', client_id, request_id, operation, self,None,None,None), to=replica_set)
+				self.retransmit_id = self.retransmit_id + 1
+				print(replica_set)
+				send(('initiating_retransmit_request', client_id, request_id, operation, self,retransmit_id), to=replica_set)
 				logger.info("sent: 'initiating_retransmit_request' with client_id=%s, request_id=%s operation=%s TO all replicas", str(client_id), str(request_id), str(operation))
-				if await(some(received(('result_shuttle',_,_), from_=replica_set))):
-					#print("after await")
-					await(some(received(('verified_result',), from_=self)))
+				self.retransmit_switch = 1
+				if await(self.retransmit_switch == 2):
+					logger.error("operation:%s completed done by the client:%s before timeout",str(operation),str(client_id))
 				elif timeout(self.client_timeout):
 					logger.error("provable case of misbehaviour")
-					#output("error provable case of misbehaviour")
+					output("error provable case of misbehaviour for client_id "+str(client_id)+" request_id "+str(request_id))
 
 			self.request_id = self.request_id + 1
+			#output(" operation is done \n")
 		await(some(received(('done',), from_=self)))
 
 	def pseudorandom_workload_gen(seed, count):
 		logger.info("generating pseudorandom workload")
 		random.seed(seed)
-		list_operations = ["put('movie','star')",
-						   "append('movie',' wars')",
-						   "get('movie')",
-						   "put('jedi','luke skywalker)",
-						   "slice('jedi','0:4'); get('jedi')"]
+		list_operations = ["put('sports','foot')",
+						   "append('sport',' ball')",
+						   "get('sports')",
+						   "put('palyer','lionel messi)",
+						   "slice('player','0:4'); get('palyer')"]
 		list_random_operations = []
 
 		for i in range(count):
@@ -135,6 +186,8 @@ class Client(process):
 						config[key.strip()] = int(
 							val) if str.isdecimal(val) else val
 		workload = config.get('workload[' + str(client_id) + ']')
+		if workload is None:
+			return {}
 		#client_timeout = 3000
 		self.client_timeout = config.get('client_timeout')
 		logger.info("workload=%s", str(workload))
@@ -207,10 +260,15 @@ class Client(process):
 def main():
 	logger = logging.getLogger("Main Module")
 	logger.setLevel(logging.INFO)
+	#logger.addHandler(handler)
+	handler = logging.FileHandler(str(timestamp)+'_MainModule.log')
+	handler.setLevel(logging.INFO)
+	formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+	handler.setFormatter(formatter)
 	logger.addHandler(handler)
 
 	T = 1  # readFromConfig()
-	client_timer_expiry = 1
+	client_timer_expiry = 100
 	total_replica_count = 2 * T + 1
 	config(channel=Fifo, clock=Lamport)
 	replica_set = new(Replica, num=total_replica_count)
@@ -228,10 +286,15 @@ def main():
 	start(replica_set)
 	logger.info("%s Replicas started", str(total_replica_count))
 
-	clients = new(Client, num=1)
+	parent_process = new(ParentProcess, num=1)
+	setup(parent_process, (total_replica_count,))
+	logger.info("Starting ParentProcess")
+	start(parent_process)
+
+	clients = new(Client, num=3)
 	client_id = 0
 	for new_client in clients:
-		setup(new_client, (client_id, olympus, client_timer_expiry,T))
+		setup(new_client, (client_id, olympus, parent_process, client_timer_expiry,T))
 		client_id = client_id + 1
 	logger.info("Starting %s Clients", str(len(clients)))
 	start(clients)
