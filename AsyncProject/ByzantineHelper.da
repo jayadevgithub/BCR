@@ -14,27 +14,6 @@ def encode_hash(msg,private_key):
 	return dgst,signed_message
 
 
-def decode_hash_and_verify(hash_digest,signed_message,public_key):
-	#print("inside decode_hash_and_verify")
-	new_digest = public_key.verify(signed_message)
-	#print(hash_digest)
-	#print(new_digest)
-	#print("\n\n\n")
-	if sodium_memcmp(hash_digest, new_digest):
-		return True
-	else:
-		return False
-
-def match_hash_with_head_replica(replica_signed_hash,replica_public_key,head_signed_hash,head_public_key):
-	#print("inside match_hash_with_head_replica")
-	replica_msg_digest = replica_public_key.verify(replica_signed_hash)
-	head_msg_digest = head_public_key.verify(head_signed_hash)
-	if sodium_memcmp(replica_msg_digest, head_msg_digest):
-		return True
-	else:
-		return False
-
-
 class History():
 	
 	def __init__(self):

@@ -43,7 +43,22 @@ class Client(process):
 			return True
 		else:
 			return False
-
+	def decode_hash_and_verify(hash_digest,signed_message,public_key):
+		#print("inside decode_hash_and_verify")
+		try:
+			new_digest = public_key.verify(signed_message)
+			if sodium_memcmp(hash_digest, new_digest):
+				return True
+			else:
+				return False    
+		except:
+			logger.error("nacl.exceptions.BadSignatureError: Signature was forged or corrupt.")
+			#print("verification 1 failed")
+		return False
+		
+		#print(hash_digest)
+		#print(new_digest)
+		#print("\n\n\n")
 	def receive(msg=('received_active_configuration_at_client', replica_set, public_keys), from_=olympus):
 		logger.info("received: 'received_active_configuration_at_client' FROM Olympus")
 		count = 0
@@ -138,7 +153,7 @@ class Client(process):
 			logger.info("sent: 'parent_verify' to parent_process")
 			#print("client_timeout "+str(client_timeout))
 			if await(self.switch == 2):
-				logger.error("operation:%s completed done by the client:%s",str(operation),str(client_id))
+				logger.info("operation:%s completed done by the client:%s",str(operation),str(client_id))
 				#output(" got the iddd for client_id "+str(client_id)+" for request_id "+str(request_id) + " gs "+str(global_seq_id) )
 			elif timeout(self.client_timeout):
 				output("TIMEOUT occurred, retransmitting request to all replicas")
@@ -149,7 +164,7 @@ class Client(process):
 				logger.info("sent: 'initiating_retransmit_request' with client_id=%s, request_id=%s operation=%s TO all replicas", str(client_id), str(request_id), str(operation))
 				self.retransmit_switch = 1
 				if await(self.retransmit_switch == 2):
-					logger.error("operation:%s completed done by the client:%s before timeout",str(operation),str(client_id))
+					logger.info("operation:%s completed done by the client:%s before timeout",str(operation),str(client_id))
 				elif timeout(self.client_timeout):
 					logger.error("provable case of misbehaviour")
 					output("error provable case of misbehaviour for client_id "+str(client_id)+" request_id "+str(request_id))
@@ -270,8 +285,10 @@ def main():
 	T = 1  # readFromConfig()
 	client_timer_expiry = 100
 	total_replica_count = 2 * T + 1
-	config(channel=Fifo, clock=Lamport)
+	config(channel=reliable, clock=Lamport,handling=all)
 	replica_set = new(Replica, num=total_replica_count)
+	#replica_set = new(Replica, num=total_replica_count, at='ReplicaNode')
+	#olympus = new(Olympus, num=1, at='OlympusNode')
 	olympus = new(Olympus, num=1)
 	replica_id = 0
 	for replica in replica_set:
@@ -287,11 +304,12 @@ def main():
 	logger.info("%s Replicas started", str(total_replica_count))
 
 	parent_process = new(ParentProcess, num=1)
+	#parent_process = new(ParentProcess, num=1, at='ParentNode')
 	setup(parent_process, (total_replica_count,))
 	logger.info("Starting ParentProcess")
 	start(parent_process)
 
-	clients = new(Client, num=3)
+	clients = new(Client, num=2)
 	client_id = 0
 	for new_client in clients:
 		setup(new_client, (client_id, olympus, parent_process, client_timer_expiry,T))
