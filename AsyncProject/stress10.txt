@@ -1,0 +1,37 @@
+# to save time during demo, one stress test is enough.  if students supply a stress test involving 5+ clients and 50+ pseudorandom requests (in total), they can choose whether to run their stress test or this one.  in either case, check whether tail's log contains expected number of result messages, as described below.
+
+# 10 clients each send 10 pseudorandom operations.
+test_case_name = stress10
+
+# expected outcome: 
+# no crashes, exceptions, etc.  
+# tail sends 100 result messages to clients.  check for this in the log.
+#  Sample commands to use, assuming tail's log is in tail.log and log entry
+#  for sending a result message contains the string "result_message":
+#  linux, mac os: grep --count result_message tail.log
+#  windows (in PowerShell): find /C `"result_message`" tail.log
+
+# number of failures to tolerate.  number of replicas is 2t+1.
+t = 2
+# number of clients
+num_client = 10
+# client timeout, in milliseconds. 
+client_timeout = 3000
+# timeout, in milliseconds, for head and non-head servers, respectively
+head_timeout = 3000
+nonhead_timeout = 3000
+
+# CLIENT WORKLOAD
+workload[0] = pseudorandom(190,10)
+workload[1] = pseudorandom(191,10)
+workload[2] = pseudorandom(192,10)
+workload[3] = pseudorandom(193,10)
+workload[4] = pseudorandom(194,10)
+workload[5] = pseudorandom(195,10)
+workload[6] = pseudorandom(196,10)
+workload[7] = pseudorandom(197,10)
+workload[8] = pseudorandom(198,10)
+workload[9] = pseudorandom(199,10)
+
+# FAILURE SCENARIO
+# no failures
