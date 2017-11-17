@@ -30,14 +30,14 @@ class ParentProcess(process):
 
     def receive(msg=('parent_perform_operation', client_id, request_id, operation), from_=client):
         logger.info(
-            "received: 'parent_perform_operation' FROM client, operation=%s", str(operation))
+            "received: 'parent_perform_operation' FROM client=%s, operation=%s",str(client_id), str(operation))
         result = process_operation(operation)
         global_result_of_operations[str(global_seq_id)] = result
         self.global_seq_id += 1
         send(('parent_performed_operation', global_seq_id - 1), to=client)
-        logger.info("sent: 'parent_performed_operation', operation=%s, result=%s", str(
+        logger.info("sent: 'parent_performed_operation to client_id:%s', operation=%s, result=%s", str(client_id),str(
             operation), str(result))
-        logger.info("global result=%s", str(global_result_of_operations))
+        #logger.info("global result=%s", str(global_result_of_operations))
 
     def process_operation(operation):
         logger.info(

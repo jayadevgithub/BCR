@@ -42,7 +42,11 @@ class Client(process):
         #self.hash_error_message = get_hashed_message('Failed')
 
     def is_verified_result(client_id, request_id):
-        cache_key = str(client_id) + str(request_id)
+        logger.info("is_verified_result: client_id:%s,request_id:%s ",str(client_id),str(request_id))
+        cache_key = '00000'+str(client_id)+'11111' + str(request_id)
+        if int(client_id) == 1 and int(request_id) == 110:
+            print("returning for key "+str(cache_key) +" value "+ str(cache_key in verified_result))
+
         if cache_key in verified_result:
             return True
         else:
@@ -113,19 +117,18 @@ class Client(process):
         logger.info("received: 'parent_sent_result'")
         self.result_from_parent_process = result_parent
         self.hash_result_from_parent_process = get_hashed_message(result_parent)
-        print("hash of result from parent process "+str(self.hash_result_from_parent_process))
+        #print("hash of result from parent process "+str(self.hash_result_from_parent_process))
         self.parent_switch = 2
 
-    def receive(msg=('result_shuttle', result_shuttle, result), from_=tail_replica):
+    def receive(msg=('result_shuttle', result_shuttle, result,replica_id,response_request_id), from_=tail_replica):
         logger.info(
-            "received: 'result_shuttle' FROM tail_replica with result=%s", str(result))
-        if is_verified_result(request_id, client_id) is False:
-            cache_key = str(client_id) + str(request_id)
+            "received: 'result_shuttle' FROM replica:%s for request_id:%s with result=%s",str(replica_id),str(response_request_id), str(result))
+        if is_verified_result(client_id,response_request_id) is False:
+            cache_key = '00000'+str(client_id)+'11111' + str(response_request_id)
+            #cache_key = str(client_id) + str(response_request_id)
             self.verified_result[cache_key] = True
             #output("received: 'result_shuttle' FROM tail_replica with result"+ str(result)+" client_id "+str(client_id)+" with seq id"+str(self.global_seq_id))
-            logger.info("processing the result and result_shuttle")
-
-
+            logger.info("processing the result and result_shuttle at client_id:%s,for request_id:%s ",str(client_id),str(response_request_id))
 
             send(('get_result_from_parent_process',
                   self.global_seq_id), to=parent_process)
@@ -151,12 +154,12 @@ class Client(process):
 
 
             if(count < self.T + 1):
-                logger.error("need to call reconfig provable case of misbehaviour detected for client_id:%s,request_id:%s result proofs are invalid",str(client_id), str(request_id))
+                logger.error("need to call reconfig provable case of misbehaviour detected for client_id:%s,request_id:%s result proofs are invalid",str(client_id), str(response_request_id))
 
                 # failure
             else:
                 logger.info("verified result for client_id:%s,request_id:%s ", str(
-                    client_id), str(request_id))
+                    client_id), str(response_request_id))
                 #output('verified result')
                 #logger.info("sent: 'verified_result' TO self")
             self.switch = 2
@@ -190,7 +193,7 @@ class Client(process):
         operations = getWorkLoad()
         #print("***workload client_id="+str(client_id)+" operations "+str(operations) +" operations len: "+str(len(operations)))
         current_time = time.time()
-        print("before time "+str(current_time))
+        print("before time "+str(current_time) +" len(operations) "+str(len(operations))+" client_id "+str(client_id))
 
         for operation in operations:
             logger.info("sent: 'perform_operation' with client_id=%s, request_id=%s TO head_replica", str(
@@ -227,8 +230,8 @@ class Client(process):
                     logger.info("operation:%s completed done by the client:%s before timeout", str(
                         operation), str(client_id))
                 elif timeout(self.client_timeout):
-                    logger.error("provable case of misbehaviour")
-                    output("error provable case of misbehaviour for client_id " +
+                    logger.error("retransmitted_request:provable case of misbehaviour client_id:%s has not received response for request_id:%s,retransmit_id:%s",str(client_id),str(request_id),str(retransmit_id))
+                    output("retransmitted_request:error provable case of misbehaviour for client_id " +
                            str(client_id) + " request_id " + str(request_id))
 
             self.request_id = self.request_id + 1
@@ -266,7 +269,7 @@ class Client(process):
         if workload is None:
             return {}
         self.client_timeout = config.get('client_timeout')
-        print("client_timeout "+str(client_timeout))
+        #print("client_timeout "+str(client_timeout))
         logger.info("workload=%s", str(workload))
         if "pseudorandom" in workload:
             open_brace_index = workload.find("(")
@@ -359,7 +362,7 @@ def get_config_info(config_file_name):
 
 
 def main():
-    config_file_name = 'perform900.txt'
+    config_file_name = 'config.txt'
     logger = logging.getLogger("Main Module")
     logger.setLevel(logging.INFO)
     # logger.addHandler(handler)

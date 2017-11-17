@@ -95,8 +95,15 @@ class Replica(process):
         self.pending_change_operations = 0
         self.pending_change_results = 0
         self.pending_drop_result_stmts = 0
+        self.send_acks_to_replicas = {}
+        self.retransmit_acknowledged = 0
+        self.current_check_point_proof = None
+        self.check_point_id = 0
+        #todo make active when olympus is doing configuration
+        self.replica_state = 1#Active 0 implies IMMUTABLE
         read_config()
         get_failure_workload()
+        self.checkpointing_interval = get_check_pointing_interval("checkpt_interval")
         #print(str(failure_triggers) + " for replica_id " + str(replica_id))
         self.logger = logging.getLogger("Replica " + str(replica_id))
         self.logger.setLevel(logging.INFO)
@@ -124,6 +131,7 @@ class Replica(process):
             self.replica_timeout = get_timeout("nonhead_timeout")
 
         count = 0
+        #print("replica_Set "+str(replica_Set))
         for replica in replica_Set:
             self.replica_set.append(replica)
             if count == 0:
@@ -131,6 +139,7 @@ class Replica(process):
             elif count == len(replica_Set) - 1:
                 self.tail_replica = replica
             count = count + 1
+        #print("tail replica "+str(tail_replica))
 
     def decode_hash_and_verify(hash_digest, signed_message, public_key):
         #print("inside decode_hash_and_verify")
@@ -185,7 +194,7 @@ class Replica(process):
     def check_in_result_cache(client_id, request_id):
         logger.info("checking if result is found in result cache for client_id:%s and request_id:%s at replica_id:%s", str(
             client_id), str(request_id), str(replica_id))
-        cache_key = str(client_id) + str(request_id)
+        cache_key = '00000'+str(client_id)+'11111' + str(request_id)
         #output("checking if result is found in result cache "+cache_key)
         if cache_key in result_cache:
             #output("found in cache at replica_id "+str(replica_id))
@@ -215,6 +224,10 @@ class Replica(process):
     def get_timeout(timeout_key):
         #client_timeout = 3000
         return config.get(timeout_key)
+
+    def get_check_pointing_interval(check_point_key):
+        #client_timeout = 3000
+        return config.get(check_point_key)
 
     # addding a new valid client to clientinfo
     def receive(msg=('add_client_at_replica', public_key, client_id), from_=olympus):
@@ -263,7 +276,7 @@ class Replica(process):
             return "Success"
 
     def get_next_replica():
-        logger.info("getting next replica:%s,len_of_replica_set:%s",str(replica_id+1),str(replica_set))
+        logger.info("getting next replica:%s,len_of_replica_set:%s",str(replica_id+1),str(len(replica_set)))
         if replica_id == len(replica_set) - 1:
             return None  # tail_replica
         else:
@@ -281,8 +294,8 @@ class Replica(process):
         result_proofs = result_shuttle.result_proofs
 
 
-        output("len(result_proofs):, "+str(len(result_proofs)) +" client_id "+str(client_id)+" request_id "+str(request_id) +" replica_id "+str(replica_id))
-        output("len(replica_set): "+str(len(replica_set)) +" client_id "+str(client_id)+" request_id "+str(request_id) +" replica_id "+str(replica_id))
+        #output("len(result_proofs):, "+str(len(result_proofs)) +" client_id "+str(client_id)+" request_id "+str(request_id) +" replica_id "+str(replica_id))
+        #output("len(replica_set): "+str(len(replica_set)) +" client_id "+str(client_id)+" request_id "+str(request_id) +" replica_id "+str(replica_id))
         if len(result_proofs) != len(replica_set):
             logger.error("need to call reconfig provable case of misbehaviour detected for client_id:%s,request_id:%s,replica_id:%s result proofs are invalid-count",
                          str(client_id), str(request_id), str(replica_id))
@@ -308,7 +321,8 @@ class Replica(process):
                 #print("operation equality status "+str(str(head_replica_result_proof.operation) != str(curr_result_proof.operation)))
                 #print("head op "+str(head_replica_result_proof.operation))
                 #print("non head op "+str(head_replica_result_proof.operation))
-                output("need to call reconfig provable case of misbehaviour")
+                #output("need to call reconfig provable case of misbehaviour")
+                #send(('reconfigure_request',replica_id), to=olympus)
                 logger.error("need to call reconfig provable case of misbehaviour detected for client_id:%s,request_id:%s,replica_id:%s result proofs are invalid", str(
                     client_id), str(request_id), str(replica_id))
                 return False
@@ -351,41 +365,121 @@ class Replica(process):
         operation_dict["value"] = None
         return operation_dict
 
+
+    def receive(msg=('wedged_request',),from_=head_replica):
+        logger.INFO("wedged_request: received wedged request FROM olympus changing the replica status to Immutable")
+        self.replica_state = 0#changing the replica status to immutable
+        logger.INFO("wedged_statement_from_replica: sending wedge statement to olympus")
+        send(('wedged_statement_from_replica',replica_history,replica_id), to=replica_set)
+
+    def receive(msg=('send_retransmitted_status',cache_key),from_=head_replica):
+        self.send_acks_to_replicas[cache_key] = True
+        self.retransmit_acknowledged = 2
+        #print(str(cache_key in send_acks_to_replicas)+" replica_id "+str(replica_id) + str(send_acks_to_replicas))
+
+
+    def receive(msg=('truncate_history_till_check_point',completed_check_point_proof,check_point_identifier),from_=prev_replica):
+        print("inside truncate_history_till_check_point")
+        self.current_check_point_proof = completed_check_point_proof
+        replica_history = self.history
+        #order_proofs = replica_history.get_order_proofs()
+        for slot_id in range(checkpointing_interval-1,-1,-1):
+            replica_history.remove_order_proof_at_slot(slot_id)
+
+        #print("replica_history.get_order_proofs()" +str(replica_history.get_order_proofs()) +" at replica_id "+str(replica_id))
+        if self.is_head_replica is False:
+            prev_replica = get_prev_replica()        
+            send(('truncate_history_till_check_point',completed_check_point_proof,check_point_identifier), to=prev_replica)
+        else:
+            print("truncation successfully done at all replicas replica_id:"+str(replica_id))
+    def validate_check_point_proofs(check_point_proof,check_point_identifier):
+        prev_replica_id = replica_id - 1
+        
+        hash_of_running_state_prev_replica = check_point_proof.get_hash_of_running_state_of_replica(prev_replica_id) 
+        signed_hash_of_running_state_prev_replica = check_point_proof.get_signed_hash_of_running_state_of_replica(prev_replica_id)
+        public_key_of_prev_replica = self.public_keys[prev_replica_id]
+
+        hash_of_running_state_current_replica = check_point_proof.get_hash_of_running_state_of_replica(replica_id)
+        signed_hash_of_running_state_current_replica = check_point_proof.get_signed_hash_of_running_state_of_replica(replica_id)
+        public_key_of_current_replica = self.public_keys[replica_id]
+
+        if decode_hash_and_verify(hash_of_running_state_prev_replica,signed_hash_of_running_state_prev_replica,public_key_of_prev_replica) is False or match_hash_with_head_replica(signed_hash_of_running_state_prev_replica,public_key_of_prev_replica,signed_hash_of_running_state_current_replica,public_key_of_current_replica) is False:
+
+            return False
+        else:
+            print("checkpointproof validation is done at replica_id:%s",str(replica_id))
+            return True
+
+    def receive(msg=('initiate_checkpointing',check_point_proof,check_point_identifier),from_ = prev_replica):
+        await((self.current_slot_number) % checkpointing_interval == 0)
+        hash_of_running_state,signed_hash_of_running_state = get_check_point_proof()
+        check_point_proof.add_to_check_point_proof(hash_of_running_state,signed_hash_of_running_state)
+        next_replica = get_next_replica()
+
+        if self.is_head_replica is False and validate_check_point_proofs(check_point_proof,check_point_identifier) is False:
+            logger.error("checkpoint validation failed, need to call reconfig provable case of misbehaviour detected at replica_id:%s ,check_point_identifier:%s", str(replica_id),str(check_point_identifier))
+
+        if self.is_tail_replica is False:
+            send(('initiate_checkpointing',check_point_proof,check_point_identifier), to=next_replica)
+        else:
+            pass
+            send(('truncate_history_till_check_point',check_point_proof,check_point_identifier), to=self)
+
+    def get_check_point_proof():
+        replica_history = self.history
+        running_state = ""
+        order_proofs = replica_history.get_order_proofs()
+        #print("order_proofs "+str(order_proofs))
+        for i in range(0,checkpointing_interval):
+            order_proof_for_each_slot = order_proofs[i]
+            #print("order_proof_for_each_slot "+str(order_proof_for_each_slot))
+            order_statements = order_proof_for_each_slot.get_order_statements_from_order_proof()
+            #print("order_statements "+str(order_statements))
+            replica_order_statement = order_statements[replica_id]
+            running_state = running_state + replica_order_statement.get_order_statement_as_string()
+        #print(running_state)
+        hash_of_running_state, signed_hash_of_running_state = encode_hash(running_state, private_key)
+        #print("hash_of_running_state"+str(hash_of_running_state))
+        #print(signed_hash_of_running_state+str(signed_hash_of_running_state))
+        return hash_of_running_state,signed_hash_of_running_state
+
     def receive(msg=('perform_operation', client_id, request_id, operation, client_process, prev_order_statement, result, result_shuttle, retransmitted, retransmit_id)):
-        # if int(client_id) == 0 and int(request_id) == 0 and int(replica_id) == 0 and retransmitted is None:
-        #    work()
-        #    work()
-        #    work()
-        logger.info("received: 'perform_operation' with client_id=%s, request_id=%s, operation=%s ,current_slot_number=%s", str(
+        logger.info("received: 'perform_operation' with retransmit_id=%s , client_id=%s, request_id=%s, operation=%s ,current_slot_number=%s",str(retransmit_id) ,str(
             client_id), str(request_id), str(operation),str(current_slot_number))
+        #testing retransmit case when the request completely failed and forwarded request is procecessed
+        # if int(client_id) == 0 and int(request_id) == 1 and int(replica_id) == 0 and retransmitted is None:
+        #     return
+
         if is_registered_client(client_id) is False:
             # error case
             logger.warning("MALICIOUS client found")
         else:
+                
             logger.info("replica_id=%s is processing operation=%s requested by client_id=%s", str(
                 replica_id), str(operation), str(client_id))
             #output("client processing operation"+str(replica_id))
-            cache_key = str(client_id) + str(request_id)
+
+            if retransmitted is True:
+                self.client_forwarded_request_count[client_id] = self.client_forwarded_request_count[client_id] + 1            
+                forwarded_request_id = self.client_forwarded_request_count[client_id]
+                #print("forwarded_request_id "+str(forwarded_request_id))
+                pending_failures = get_pending_failures_if_exists(client_id, forwarded_request_id, "forwarded_request")
+
+                for pending_failure in pending_failures:
+                    if pending_failure is not None:
+                        logger.info("Trigger Exists:  in  replica=%s, trigger_name=forwarded_request with client_id=%s, request_id=%s, failure_to_be_executed=%s", str(
+                            replica_id), str(client_id), str(request_id), str(pending_failure["failure_name"]))
+                        update_failure_count(str(pending_failure["failure_name"]))
+
+            cache_key = '00000'+str(client_id)+'11111' + str(request_id)
             if cache_key in result_cache and result_cache[cache_key] is True:
-                logger.info("operation sent by replica_id=%s  operation=%s requested by client_id=%s and request_id:%s is duplicate", str(
+
+                logger.info("operation sent to replica_id=%s  operation=%s requested by client_id=%s and request_id:%s is duplicate", str(
                     replica_id), str(operation), str(client_id), str(request_id))
                 # if the operation is already scheduled ignore the request
                 pass
                 # todo
             elif self.is_head_replica is True:
-
-                if retransmitted is True:
-                    forwarded_request_id = self.client_forwarded_request_count[client_id]
-
-                    pending_failures = get_pending_failures_if_exists(
-                        client_id, forwarded_request_id, "forwarded_request")
-
-                    for pending_failure in pending_failures:
-                        if pending_failure is not None:
-                            logger.info("Trigger Exists:  in  replica=%s, trigger_name=forwarded_request with client_id=%s, request_id=%s, failure_to_be_executed=%s", str(
-                                replica_id), str(client_id), str(request_id), str(pending_failure["failure_name"]))
-                            update_failure_count(
-                                str(pending_failure["failure_name"]))
 
                 client_request_failures = get_pending_failures_if_exists(
                     client_id, request_id + retransmit_id, "client_request")
@@ -459,8 +553,19 @@ class Replica(process):
                     replica_id + 1), str(client_id), str(request_id), str(operation))
                 self.current_slot_number = self.current_slot_number + 1
 
+                if (current_slot_number) % checkpointing_interval == 0:
+                    #pass
+                    #hash_of_running_state,signed_hash_of_running_state = get_check_point_proof()
+                    check_point_proof = CheckPointProof(check_point_id)
+                    #check_point_proof.add_to_check_point_proof(hash_of_running_state,signed_hash_of_running_state)
+                    #next_replica = get_next_replica()
+                    send(('initiate_checkpointing',check_point_proof,check_point_id), to=self)
+
             else:
 
+                # if int(client_id) == 0 and int(request_id) == 0 and int(replica_id) == 1 and retransmitted is None:
+                #    work()
+                #    work()
                 #reading the failures and addding to the failures
                 client_request_failures = get_pending_failures_if_exists(
                     client_id, request_id + retransmit_id, "client_request")
@@ -473,10 +578,10 @@ class Replica(process):
 
                 shuttle_failures = get_pending_failures_if_exists(
                     client_id, request_id + retransmit_id, "shuttle")
-                print("outside "+str(len(shuttle_failures)) +" my replica_id is "+str(replica_id) +" for request_id "+str(request_id))
+                #print("outside "+str(len(shuttle_failures)) +" my replica_id is "+str(replica_id) +" for request_id "+str(request_id))
                 for i in range(0,len(shuttle_failures)):
                     shuttle_failure = shuttle_failures[i]
-                    print("inside")
+                    #print("inside")
                     if shuttle_failure is not None:
                         logger.info("Trigger Exists:  in  replica=%s, trigger_name=shuttle with client_id=%s, request_id=%s, failure_to_be_executed=%s", str(
                             replica_id), str(client_id), str(request_id), str(shuttle_failure["failure_name"]))
@@ -484,7 +589,9 @@ class Replica(process):
 
 
                 result = process_operation(operation)
-                order_proof = result_shuttle.get_order_proof_from_shuttle()
+                #order_proof = result_shuttle.get_order_proof_from_shuttle()
+                order_proof = copy.deepcopy(result_shuttle.get_order_proof_from_shuttle())
+                
                 order_proof.set_replica_id_in_order_proof(replica_id)
                 order_statement = OrderStatement(
                     current_slot_number, operation, replica_id, self.private_key)
@@ -530,22 +637,24 @@ class Replica(process):
                     send(('cache_result_shuttle', client_id, request_id,
                           retransmit_id, result_shuttle, result), to=self)
 
-                    # if int(client_id) == 0 and int(request_id) == 0 and int(replica_id) == len(replica_set)-1 and retransmitted is None:
-                    # 	t = 10
-                    # 	await(t == 100 )
+                    #testing retransmit case when the request is processed but result didnot reach client
+                    #and client got timedout cached result will be sent directly, requests wont be sent 
+                    #to head_replica cached result
+                    #add the below line .. 
+                    # if int(client_id) == 0 and int(request_id) == 0 and int(replica_id) == 2 and retransmitted is None:
+                    #     pass
                     # else:
-                    send(('result_shuttle', result_shuttle, result),
-                         to=client_process)
 
-                    logger.info(
-                        "sent: 'result_shuttle' TO client_id=%s", str(client_id))
+                    send(('result_shuttle', result_shuttle, result,replica_id,request_id),to=client_process)
 
-                    if retransmitted is True:
+                    logger.info("sent: 'result_shuttle' TO client_id=%s", str(client_id))
+
+                    #print(str(cache_key in self.send_acks_to_replicas) +" replica_id "+str(replica_id) +str(send_acks_to_replicas) )
+                    if retransmitted is True or cache_key in send_acks_to_replicas:
                         # send result,result_proof to all the awaiting replicas
+                        logger.info("sent: 'retransmitted_request_from_replica_to_head' TO all the replicas")
                         send(('retransmitted_request_from_replica_to_head',),
                              to=replica_set_united)
-                        logger.info(
-                            "sent: 'retransmitted_request_from_replica_to_head' TO all the replicas")
 
                     # send(('cache_result_shuttle',client_id,request_id,retransmit_id,result_shuttle,result),to=self)
                     logger.info("sent: 'cache_result_shuttle' TO replica_id=%s, with client_id=%s, request_id=%s and result_shuttle", str(
@@ -602,7 +711,8 @@ class Replica(process):
         elif failure_name == "drop_result_stmt":
             self.pending_drop_result_stmts = self.pending_drop_result_stmts + 1
 
-    def receive(msg=('retransmitted_request_from_replica_to_head', public_key, private_key, public_keys)):
+    def receive(msg=('retransmitted_request_from_replica_to_head',)):
+        logger.info("retransmitted: request is successfully done for replica_id=%s", str(replica_id))        
         self.switch = 2
 
     def receive(msg=('initiating_retransmit_request', client_id, request_id, operation, client_process, retransmit_id)):
@@ -614,27 +724,32 @@ class Replica(process):
             output('malicious client found')
             logger.warning("MALICIOUS client found")
         else:
+            cache_key = '00000'+str(client_id)+'11111' + str(request_id)
             #output("replica_id"+ str(replica_id)+" is processing the retransmitted operation FROM client_id:"+ str(client_id)+" request id is"+str(request_id))
             logger.info("replica_id=%s is processing the retransmitted operation FROM client_id=%s", str(
                 replica_id), str(client_id))
             cached_object = check_in_result_cache(request_id, client_id)
+            print("cached_object" +str(cached_object))
             if cached_object is not None and cached_object != True:
-                #output("***found retransmit request from "+str(client_process)+" at replica_id "+str(replica_id))
+                output("***found retransmit request from "+str(client_process)+" at replica_id "+str(replica_id))
                 result_shuttle = cached_object.result_shuttle
                 result = cached_object.result
-                send(('result_shuttle', result_shuttle, result), to=client_process)
+                send(('result_shuttle', result_shuttle, result,replica_id,request_id), to=client_process)
                 logger.info("sent: 'result_shuttle' TO client_id=%s, with result shuttle and reslut=%s", str(
                     client_id), str(result))
                 # todo
             elif self.is_head_replica is True:
+                send(('send_retransmitted_status',cache_key),to = tail_replica)
+                self.retransmit_acknowledged = 1
+                await(self.retransmit_acknowledged == 2)
                 #output(" not found in cache retransmitting the request")
                 if check_in_order_proof(request_id) is False:
                     # this is a new operation
                     #output("head request request also sent")
                     send(('perform_operation', client_id, request_id, operation,
-                          self, None, None, None, True, retransmit_id), to=head_replica)
+                          client_process, None, None, None, True, retransmit_id), to=head_replica)
                     self.switch = 1
-                    logger.info("sent: 'perform_operation' with client_id=%s, request_id=%s, operation=%s TO head_replica", str(
+                    logger.info("retransmitting_to_head_replica: 'perform_operation' with client_id=%s, request_id=%s, operation=%s TO head_replica", str(
                         client_id), str(request_id), str(operation))
                     if await(self.switch == 2):
                         # received response before the timer got expired
@@ -648,7 +763,8 @@ class Replica(process):
                     # start timer
                     # here the operation has already been scheduled so just starting a timer
                     # send(('start_timer_for_request',client_id,request_id),to=self)
-                    #output("head request just seeing")
+                    logger.info("head_replica:waiting for operation to processed with client_id=%s, request_id=%s, operation=%s ,retransmit_id=%s", str(
+                        client_id), str(request_id), str(operation),str(retransmit_id))
                     self.switch = 1
                     if await(self.switch == 2):
                         # received response before the timer got expired
@@ -658,16 +774,19 @@ class Replica(process):
                         logger.warning(
                             "TIMEOUT occurred, this is a provable case of misbehaviour. Send reconfiguration request")
             else:
+                send(('send_retransmitted_status',cache_key),to = tail_replica)
+                self.retransmit_acknowledged = 1
+                await(self.retransmit_acknowledged == 2)
+
                 #output("in non head replica " +" at replica_id "+str(replica_id))
                 # checking if the request is retransmitted or new request
-                self.client_forwarded_request_count[client_id] = self.client_forwarded_request_count[client_id] + 1
 
                 # for non head replicas
                 # start timer and send the request to head
                 # send(('start_timer_for_request',client_id,request_id),to=head_replica)
                 send(('perform_operation', client_id, request_id, operation,
-                      self, None, None, None, True, retransmit_id), to=head_replica)
-                logger.info("sent: 'perform_operation' with client_id=%s, request_id=%s, operation=%s TO head_replica", str(
+                      client_process, None, None, None, True, retransmit_id), to=head_replica)
+                logger.info("retransmitting_to_head_replica: 'perform_operation' with client_id=%s, request_id=%s, operation=%s TO head_replica", str(
                     client_id), str(request_id), str(operation))
                 #output("in non head replica sent")
                 self.switch == 1
@@ -693,7 +812,7 @@ class Replica(process):
                     request_id), str(client_id))
             return
 
-        cache_key = str(client_id) + str(request_id)
+        cache_key = '00000'+str(client_id)+'11111' + str(request_id)
         cachedObject = CachedResult(result, result_shuttle)
         #output("cached the result "+str(result) +" and result_shuttle "+str(result_shuttle)+" at replica_id "+str(replica_id)+" client_id "+str(client_id)+" for request_id "+str(request_id) )
         self.result_cache[cache_key] = cachedObject

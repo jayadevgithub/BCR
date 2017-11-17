@@ -1,0 +1,73 @@
+
+-----
+failure triggers for phases 2 and 3:   [2017-09-12: postponed some triggers to phase 3, and added two triggers related to checkpoints.]
+
+client_request(c, m): receipt of m'th request message directly from client c.  requests received directly from client c are numbered separately from requests of client c received via forwarding by other replicas.
+ 
+forwarded_request(c, m): receipt of m'th forwarded request message containing a request from client c.
+
+shuttle(c, m): receipt of m'th shuttle message for a request by client c.
+
+result_shuttle(c, m): receipt of m'th result-shuttle message for a request by client c.
+
+-----
+failure triggers for phase 3 only:
+
+wedge_request(m): receipt of m'th wedge-request message.
+
+new_configuration(m): receipt of m'th new_configuration message from Olympus.  it doesn't matter whether your implementation actually sends a new_configuration message for the initial configuration; either way, m=0 corresponds to the first configuration change after the initial configuration.
+
+checkpoint(m): receipt of m'th checkpoint message [2017-09-12: added this item.]
+
+completed_checkpoint(m): receipt of m'th completed checkpoint message [2017-09-12: added this item.]
+
+[2017-11-12 added the following failure triggers]
+
+get_running_state(m): receipt of m'th get_running_state message.
+
+catch_up(m): receipt of m'th catch_up message.
+
+----
+required failures for phases 2 and 3: [2017-09-12: postponed some failures to phase 3, added drop_result_stmt, and removed omit_send() (use drop() on the receiver-side instead).]
+
+change_operation(): in the next outgoing shuttle message, this replica uses get('x') as the operation in its order statement and result statement, regardless of what the operation should be.
+
+change_result(): in the next outgoing result message (to a client) or result shuttle message, this replica uses the hash of 'OK', instead of the hash of the actual result, in its result statement.
+
+drop_result_stmt(): in the next outgoing result message (to a client) or result shuttle message, omit the head's result statement from the result proof.
+
+[2017-10-22 In case of change_result or drop_result_stmt failures at the tail, the tail sends the tampered result proofs to both the client and the previous replica.]
+
+-----
+required failures for phase 3 only:  [2017-10-09 inserted "only"]
+
+crash(): immediately call logging.shutdown() (to flush logs to disk) and then os._exit(-1).  you need "import logging" and "import os" for this to work.
+
+truncate_history(): in the next outgoing wedged message, send a truncated history by omitting the last entry.
+
+sleep(time): sleep for the specified time, in milliseconds.  this is a timing failure.
+
+drop(): drop (i.e., ignore) the incoming message that triggered this failure.
+
+[2017-11-12 added the following failures]
+
+increment_slot(): if this replica is the head, it immediately increments the variable in which it stores the slot number to assign to the next request.  this should be done before processing the message that triggered the failure.  if this replica is not the head, this failure has no effect.
+
+extra_op(): this replica immediately applies the operation put('a','a') to its running state.  this should be done before processing the message that triggered the failure.
+
+invalid_order_sig(): in the next outgoing shuttle message, this replica puts an invalid signature on its order statement.
+
+example: here is one way to create an invalid signature.
+# increment the first byte of the signature in a nacl.signing.SignedMessage.
+# modifying invalid_signed._signature is unnecessary. 
+signedlist = list(signed)
+signedlist[0] = (signedlist[0] + 1) % 256
+newsigned=bytes(signedlist)
+invalid_signed = nacl.signing.SignedMessage._from_parts(signed._signature, signed._message, newsigned)
+
+invalid_result_sig(): if this replica is not the tail, it puts an invalid signature on its result statement in the next outgoing shuttle message [note: this is "shuttle message" not "result shuttle message"].  if this replica is the tail, it puts an invalid signature on its result statement in the next outgoing result message to a client.
+
+drop_checkpt_stmts(): in the next outgoing completed checkpoint proof shuttle [this is the message that travels along the chain from tail to head], this replica omits the checkpoint statements from the first t+1 replicas in the chain.
+
+-----
+configuration files should have the following format: each row either starts with "#", in which case it is a comment, or contains the name of a configuration parameter, an equals sign, and the value of that configuration parameter.  whitespace around the equals sign is optional and should be ignored.  parameters may appear in the configuration file in any order.

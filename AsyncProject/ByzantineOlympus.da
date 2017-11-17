@@ -7,9 +7,11 @@ class Olympus(process):
         self.public_keys = []
         self.private_keys = []
         self.count_of_registrations = {}
+        self.count_of_wedged_statements = 0
         self.logger = logging.getLogger("Olumpus:")
         self.logger.setLevel(logging.INFO)
         self.handler = logging.FileHandler(str(timestamp) + '_olympus.log')
+        self.wedged_statements = {}
         self.handler.setLevel(logging.INFO)
         self.formatter = logging.Formatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -70,6 +72,19 @@ class Olympus(process):
             public_key = private_key.verify_key
             public_keys.append(public_key)
             private_keys.append(private_key)
+
+
+    def receive(msg=('reconfigure_request', replica_id), from_=process_cli_replica):
+        logger.warning("reconfigure_request: received reconfig request FROM replica_id=%s", str(replica_id))
+
+        logger.INFO("wedged_request: sending wedged requests to all the replicas")
+        self.count_of_wedged_statements = 0
+        send(('wedged_request',replica_set, public_keys), to=replica_set)
+        await(self.count_of_wedged_statements == len(replica_set))
+
+    def receive(msg=('wedged_statement_from_replica', replica_history,replica_id), from_=client):
+        self.count_of_wedged_statements = self.count_of_wedged_statements + 1
+        self.wedged_statements[replica_id] = replica_history
 
     def receive(msg=('client_registered_at_replica', client_id), from_=client):
         self.count_of_registrations[client_id] = self.count_of_registrations[client_id] + 1

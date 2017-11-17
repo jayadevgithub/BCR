@@ -13,6 +13,27 @@ def encode_hash(msg, private_key):
     # print("\n")
     return dgst, signed_message
 
+class CheckPointProof():
+    def __init__(self,checkpoint_identifier):
+        self.checkpoint_id = checkpoint_identifier
+        self.hashes_of_running_state = []
+        self.signed_hashes_of_running_state = []
+
+    def add_to_check_point_proof(self,hash_of_running_state,signed_hash_of_running_state):
+        self.hashes_of_running_state.append(hash_of_running_state)
+        self.signed_hashes_of_running_state.append(signed_hash_of_running_state)
+
+    def get_hashes_of_running_state(self):
+        return self.hashes_of_running_state
+
+    def get_signed_hashes_of_running_state(self):
+        return self.signed_hashes_of_running_state
+
+    def get_hash_of_running_state_of_replica(self,replica_id):
+        return self.hashes_of_running_state[replica_id]
+
+    def get_signed_hash_of_running_state_of_replica(self,replica_id):
+        return self.signed_hashes_of_running_state[replica_id]
 
 class History():
 
@@ -22,6 +43,12 @@ class History():
     def add_order_proof_to_history(self, order_proof):
         self.order_proof_for_each_slot.append(order_proof)
 
+    def get_order_proofs(self):
+        return self.order_proof_for_each_slot
+
+    def remove_order_proof_at_slot(self,slot_id):
+        #print("order_proof_for_each_slot "+str(self.order_proof_for_each_slot))
+        del self.order_proof_for_each_slot[slot_id]
 
 class CachedResult():
 
@@ -35,10 +62,20 @@ class OrderStatement():
     def __init__(self, slot, operation, replica_id, private_key):
         # todo
 
+        self.slot = slot
+        self.operation = operation
         concatenated_msg = str(slot) + str(operation)
         self.hash_operation, self.signed_hash = encode_hash(
             concatenated_msg, private_key)
         self.replica_id = replica_id
+
+    def get_order_statement_as_string(self):
+        concatenated_msg = str(self.slot) + str(self.operation)
+        # HASHER = nacl.hash.sha256
+        # msg_in_bytes = str(concatenated_msg).encode('utf-8')
+        # dgst = HASHER(msg_in_bytes, encoder=nacl.encoding.HexEncoder)
+        #print(concatenated_msg)
+        return concatenated_msg
 
 
 class ResultProof():
@@ -68,10 +105,14 @@ class OrderProof():
     def add_order_statment(self, order_statement):
         #print("order_statements_length "+str(len(self.order_statements)))
         self.order_statements.append(order_statement)
+        #print("order_statements "+str(self.order_statements))
+        #print("order_statements_length "+str(len(self.order_statements)))
 
     def set_replica_id_in_order_proof(self, replica_Id):
         self.replica_Id = replica_Id
 
+    def get_order_statements_from_order_proof(self):
+        return self.order_statements
 
 class Shuttle():
 
