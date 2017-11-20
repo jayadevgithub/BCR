@@ -3,12 +3,15 @@ class Olympus(process):
 
     def setup(T: int, count: int, replica_Set: set):
         self.client_info = {}
-        self.replica_set = []
-        self.public_keys = []
-        self.private_keys = []
+        self.replica_set = {}
+        self.public_keys = {}
+        self.private_keys = {}
         self.count_of_registrations = {}
         self.count_of_wedged_statements = 0
-        self.logger = logging.getLogger("Olumpus:")
+        self.count_of_caughtup_messages = 0
+        self.caughtup_messages_of_replicas = {}
+        self.client_process_info = {}
+        self.logger = logging.getLogger("Olympus:")
         self.logger.setLevel(logging.INFO)
         self.handler = logging.FileHandler(str(timestamp) + '_olympus.log')
         self.wedged_statements = {}
@@ -17,10 +20,13 @@ class Olympus(process):
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         self.handler.setFormatter(formatter)
         self.logger.addHandler(handler)
-
+        self.T = T  # readFromConfig()
+        self.caughtup = 0
+        self.consistent_signed_hash_of_running_state = None
+        self.current_running_state = None
         count = 0
-        for replica in replica_Set:
-            self.replica_set.append(replica)
+        for replica_id,replica in enumerate(replica_Set):
+            self.replica_set[replica_id] = replica
             if count == 0:
                 self.head_replica = replica
             elif count == len(replica_Set) - 1:
@@ -32,17 +38,20 @@ class Olympus(process):
 
         #output('generating keys done at olympus')
 
+    def setup_replicas():
+
     def receive(msg=('register_client_at_olympus', public_key, client_id), from_=client):
         logger.info(
             "received: 'register_client_at_olympus' FROM client_id=%s", str(client_id))
         #--request
         #current_clock = logical_clock()
         self.client_info[client_id] = public_key
+        self.client_process_info[client_id] = client
         self.count_of_registrations[client_id] = 0
         #output('inside olympus ' + str(client_id) + str(current_clock))
         # output(current_clock)
         #--criticalsection
-        send(('add_client_at_replica', public_key, client_id), to=replica_set)
+        send(('add_client_at_replica', public_key, client_id), to=replica_set.values())
         logger.info(
             "sent: 'add_client_at_replica'-client_id=%s, TO all the replicas", str(client_id))
         # await(each(replica in replica_set,
@@ -63,28 +72,330 @@ class Olympus(process):
 
     def initConfiguration(T, replica_set):
         #		HASHER = nacl.hash.sha256
-        self.T = T  # readFromConfig()
-        for i in range(0, 2 * T + 1):
+        for replica_id in range(0, 2 * T + 1):
             key = nacl.utils.random(nacl.secret.SecretBox.KEY_SIZE)
             #print("key :"+str(key))
             naclObject = nacl.signing.SigningKey(key)
             private_key = naclObject.generate()
             public_key = private_key.verify_key
-            public_keys.append(public_key)
-            private_keys.append(private_key)
+            public_keys[replica_id] = public_key
+            private_keys[replica_id] = private_key
 
+
+    def get_maximal_order_proof_replica_index(faulty_replica_indices):
+        max_slots = -1
+        max_order_proof_replica_index = None
+
+        for replica_index in self.wedged_statements:
+            if replica_index in faulty_replica_indices:
+                continue
+            replica_wedged_statement = wedged_statements[replica_index]
+            replica_history = replica_wedged_statement.get_history_from_wedged_statement()
+            count_of_slots_at_replica = replica_history.get_count_of_slots()
+            if max_slots < count_of_slots_at_replica:
+                max_slots = count_of_slots_at_replica
+                max_order_proof_replica_index = replica_index
+
+        return max_order_proof_replica_index
+
+    def decode_hash_and_verify(hash_digest, signed_message, public_key):
+        #print("inside decode_hash_and_verify")
+        try:
+            new_digest = public_key.verify(signed_message)
+            #print("hash_digest "+str(hash_digest))
+            #print("new_digest "+str(new_digest))
+            if sodium_memcmp(hash_digest, new_digest):
+                return True
+            else:
+                return False
+        except:
+            logger.error(
+                "nacl.exceptions.BadSignatureError: Signature was forged or corrupt.")
+            #print("verification 1 failed")
+
+        return False
+
+    def match_hash_with_max_replica(replica_signed_hash, replica_public_key, head_signed_hash, head_public_key):
+        #print("inside match_hash_with_max_replica")
+        try:
+            replica_msg_digest = replica_public_key.verify(replica_signed_hash)
+            head_msg_digest = head_public_key.verify(head_signed_hash)
+
+            #print("replica_msg_digest "+str(replica_msg_digest) )
+            #print("head_msg_digest "+str(head_msg_digest) )
+            if sodium_memcmp(replica_msg_digest, head_msg_digest):
+                return True
+            else:
+                return False
+        except:
+            logger.error(
+                "nacl.exceptions.BadSignatureError: Signature was forged or corrupt")
+            #print("verification 2 failed")
+
+        return False
+
+    def get_the_slot_to_start_catchup_process():
+
+        #first iterate the completed check point proofs and the find the slot_id
+        #to start comparing from
+        checkpoint_indices = []
+        for replica_index in self.wedged_statements:
+            replica_wedged_statement = wedged_statements[replica_index]
+            if replica_wedged_statement.get_last_check_point_proof() is None:
+                continue
+            replica_checkpoint_id = replica_wedged_statement.get_checkpoint_id()
+            if replica_checkpoint_id not in checkpoint_indices:
+                checkpoint_indices.append(replica_checkpoint_id)
+
+        if len(checkpoint_indices) == 0:
+            return None
+        elif len(checkpoint_indices) > 1:
+            logger.info("multiple checkpoints exist in the replicas")
+            max_checkpoint_value = max(checkpoint_indices)
+            max_checkpoint_indices = [ index for index,value in enumerate(checkpoint_indices) if value == max_checkpoint_value] 
+            #todo fix range and replica_id
+            for replica_index in max_checkpoint_indices:
+                replica_wedged_statement = wedged_statements[replica_index]
+                checkpoint_proof = replica_wedged_statement.get_last_check_point_proof()
+                count_of_replicas_in_check_point_proof = checkpoint_proof.get_count_of_replicas_with_checkpoint()
+
+                if count_of_replicas_in_check_point_proof != len(replica_set):
+                    logger.error("Invalid checkpoint proof,checkpoint proof is not complete,missing replica proofs")
+                    continue
+                
+                replica_list = checkpoint_proof.get_replicas_in_checkpoint()
+
+                prev_replica_id  = None
+                is_a_valid_check_point_proof = True
+                for rep_id in replica_list:
+                    if prev_replica_id is None:
+                        prev_replica_id = rep_id
+                        continue
+                    
+                    hash_of_running_state_prev_replica = checkpoint_proof.get_hash_of_running_state_of_replica(prev_replica_id) 
+                    signed_hash_of_running_state_prev_replica = checkpoint_proof.get_signed_hash_of_running_state_of_replica(prev_replica_id)
+                    public_key_of_prev_replica = self.public_keys[prev_replica_id]
+
+                    hash_of_running_state_current_replica = checkpoint_proof.get_hash_of_running_state_of_replica(rep_id)
+                    signed_hash_of_running_state_current_replica = checkpoint_proof.get_signed_hash_of_running_state_of_replica(rep_id)
+                    public_key_of_current_replica = self.public_keys[rep_id]
+
+                    if decode_hash_and_verify(hash_of_running_state_prev_replica,signed_hash_of_running_state_prev_replica,public_key_of_prev_replica) is False or match_hash_with_max_replica(signed_hash_of_running_state_prev_replica,public_key_of_prev_replica,signed_hash_of_running_state_current_replica,public_key_of_current_replica) is False:
+                        is_a_valid_check_point_proof = False
+                        break
+                
+                if is_a_valid_check_point_proof is True:
+                    return checkpoint_proof.get_check_point_terminal_slot_id()
+
+
+            #all the latest checkpoint proofs are invalid so we need to revert to the old checkpoint
+            min_checkpoint_indices= [ index for index,val in enumerate(checkpoint_indices) if val == min(checkpoint_indices)]
+            checkpoint_indices = min_checkpoint_indices 
+        
+        for replica_index in checkpoint_indices:
+            replica_wedged_statement = wedged_statements[replica_index]
+            checkpoint_proof = replica_wedged_statement.get_last_check_point_proof()
+            count_of_replicas_in_check_point_proof = checkpoint_proof.get_count_of_replicas_with_checkpoint()
+
+            if count_of_replicas_in_check_point_proof != len(replica_set):
+                logger.error("Invalid checkpoint proof,checkpoint proof is not complete,missing replica proofs")
+                continue
+            else:
+                return check_point_proof.get_check_point_terminal_slot_id()
+
+            #todo all the check point proofs are invalid we need to quit or do something
+
+    def get_valid_quorum_of_replicas(max_order_proof_replica_index,slot_id_to_start_from):
+        valid_quorum_of_replicas = []
+        valid_quorum_of_replicas.append(max_order_proof_replica_index)
+        catchup_messages = {}
+        catchup_messages[max_order_proof_replica_index] = CatchupMessage()
+        max_wedged_statement = wedged_statements[max_order_proof_replica_index]
+        max_replica_public_key = self.public_keys[max_order_proof_replica_index]
+        max_count_of_slots  = max_wedged_statement.get_count_of_slots()
+        for replica_index in self.wedged_statements:
+            if replica_index == max_order_proof_replica_index: 
+                pass
+            else:
+                current_wedged_statement = wedged_statements[replica_index]
+                curr_order_proofs_size = current_wedged_statement.get_count_of_slots()
+                curr_replica_public_key = self.public_keys[replica_index]
+                is_a_quorum_replica = True
+                for slot_id in range(slot_id_to_start_from,curr_order_proofs_size):
+                    curr_order_proof = current_wedged_statement.get_order_proof_at_slot(slot_id)
+                    if curr_order_proof is None:
+                        is_a_quorum_replica = False
+                        break
+                    max_order_proof = max_wedged_statement.get_order_proof_at_slot(slot_id)
+
+                    curr_order_stmt = curr_order_proof.get_order_statement_of_replica(replica_index)
+                    max_order_stmt = max_order_proof.get_order_statement_of_replica(max_order_proof_replica_index)
+
+                    curr_hash_of_order_stmt = curr_order_stmt.get_hash_of_order_statement()
+                    curr_signed_hash_of_order_stmt = curr_order_stmt.get_signed_hash_of_order_statement()
+
+                    max_hash_of_order_stmt = max_order_stmt.get_hash_of_order_statement()
+                    max_signed_hash_of_order_stmt = max_order_stmt.get_signed_hash_of_order_statement()
+
+                    if decode_hash_and_verify(curr_hash_of_order_stmt,curr_signed_hash_of_order_stmt,curr_replica_public_key) is False or match_hash_with_max_replica(curr_signed_hash_of_order_stmt,curr_replica_public_key,max_signed_hash_of_order_stmt,max_replica_public_key) is False:
+                        is_a_quorum_replica = False
+                        break
+
+                if is_a_quorum_replica is True:
+                    valid_quorum_of_replicas.append(replica_index)
+                    catchup_length = max_count_of_slots - curr_order_proofs_size
+                    catchup_message = CatchupMessage()
+                    if catchup_length > 0:
+                        for slot_id in range(curr_order_proofs_size,max_count_of_slots):
+                            max_order_proof = max_wedged_statement.get_order_proof_at_slot(slot_id)
+                            catchup_order_stmt = max_order_proof.get_order_statement_of_replica(max_order_proof_replica_index)
+                            catchup_stmt = CatchupStatement(catchup_order_stmt)
+                            catchup_message.add_order_statement(slot_id,catchup_stmt)
+                    catchup_messages[replica_index] = catchup_message
+
+                if len(valid_quorum_of_replicas) == T + 1:
+                    return (valid_quorum_of_replicas,catchup_messages)
+
+        return (valid_quorum_of_replicas,catchup_messages)
 
     def receive(msg=('reconfigure_request', replica_id), from_=process_cli_replica):
+        print("inside olympus reconfigure_request")
         logger.warning("reconfigure_request: received reconfig request FROM replica_id=%s", str(replica_id))
 
-        logger.INFO("wedged_request: sending wedged requests to all the replicas")
+        logger.info("wedged_request: sending wedged requests to all the replicas")
         self.count_of_wedged_statements = 0
-        send(('wedged_request',replica_set, public_keys), to=replica_set)
+        send(('wedged_request',), to=replica_set.values())
+        # we may need to change the condition if crash failure is encountered
         await(self.count_of_wedged_statements == len(replica_set))
 
-    def receive(msg=('wedged_statement_from_replica', replica_history,replica_id), from_=client):
+        checkpoint_terminal_slot_id =get_the_slot_to_start_catchup_process()
+        if checkpoint_terminal_slot_id is not None:
+            next_slot_id = checkpoint_terminal_slot_id + 1
+        else:
+            next_slot_id = 0
+        valid_quorum_of_replicas = []
+        
+        faulty_replica_indices = []
+        catchup_messages = None
+        while True:
+            max_order_proof_replica_index = get_maximal_order_proof_replica_index(faulty_replica_indices)
+            if max_order_proof_replica_index is None:
+                logger.error("Quorum of T+1 valid replicas doesnot exist")
+                print("Quorum of T+1 valid replicas doesnot exist need to terminate")
+                break
+
+            (valid_quorum_of_replicas,catchup_messages) = get_valid_quorum_of_replicas(max_order_proof_replica_index,next_slot_id)
+            print("here 1 "+str(valid_quorum_of_replicas))
+            if len(valid_quorum_of_replicas) == T + 1:
+                print("T+1 replicas found ")
+                break
+            print("here 2")
+            faulty_replica_indices.append(max_order_proof_replica_index)
+
+        if max_order_proof_replica_index is None:
+            print("Quorum of T+1 valid replicas doesnot exist need to terminate")
+            #need to abort or exit todo
+        
+
+        print("Quorum of replicas found "+str(catchup_messages))
+
+        for replica_id in valid_quorum_of_replicas:
+            #replica_id = valid_quorum_of_replicas[i]
+            if catchup_messages is not None:
+                catchup_message = catchup_messages[replica_id]
+            else:
+                print("catchup_message "+str(catchup_messages))
+            replica_to = replica_set[replica_id]
+            print("sending perform_catchup_to_maximal_order_proof")
+            send(('perform_catchup_to_maximal_order_proof',catchup_message),to = replica_to)
+
+        await(self.count_of_caughtup_messages == len(valid_quorum_of_replicas))
+
+        if validate_runningstate_in_caughtup_messages() is True:
+
+            for client_id in self.client_process_info:
+                shuttle = ResultShuttle()
+                for replica_id in caughtup_messages_of_replicas:
+                    caughtup_message = caughtup_messages_of_replicas[replica_id]
+                    result_statement = caughtup_message.get_last_result_statement_of_client_at_replica(client_id)
+                    shuttle.add_result_proof_at_replica_id(replica_id,result_statement)
+                client_process = self.client_process_info[client_id]
+                send(('last_served_request',shuttle),to=client_process)
+            #now send caughtup message request to some random replica id
+
+            quorum_of_replicas = copy.deepcopy(valid_quorum_of_replicas)
+
+            valid_running_state = None
+            while len(quorum_of_replicas) > 0:
+                random_replica_index = randint(0,len(quorum_of_replicas)-1)
+                replica_id = quorum_of_replicas[random_replica_index]
+                
+                send(('get_running_state',),to = replica_set[replica_id])
+                self.caughtup = 0
+                await(self.caughtup == 1)
+                caughtup_message = caughtup_messages_of_replicas[replica_id]
+                del quorum_of_replicas[random_replica_index]
+
+                replica_running_state = self.current_running_state
+                replica_signed_hash_of_running_state = get_signed_hash(replica_running_state,self.private_keys[replica_id])
+                if compare_signed_messages(replica_signed_hash_of_running_state,consistent_signed_hash_of_running_state) is True:
+                    valid_running_state = replica_running_state
+                    break
+            if valid_running_state is None:
+                print("running_states are not consistent,need to do abort the system")
+            else:
+                print("need to do inithist with the valid running_state")
+                pass
+
+        else:
+            print("validate_runningstate_in_caughtup_messages failed")
+
+    def validate_runningstate_in_caughtup_messages():
+        prev_replica_hash_of_running_state = None
+        prev_replica_signed_hash_of_running_state = None
+        prev_replica_public_key = None
+        for replica_id in caughtup_messages_of_replicas:
+            
+            caughtup_message = caughtup_messages_of_replicas[replica_id]
+            
+            if prev_replica_hash_of_running_state is None:
+                prev_replica_hash_of_running_state = caughtup_message.get_hash_of_running_state()
+                prev_replica_signed_hash_of_running_state = caughtup_message.get_signed_hash_of_running_state()
+                prev_replica_public_key = self.public_keys[replica_id]
+                if decode_hash_and_verify(prev_replica_hash_of_running_state,prev_replica_signed_hash_of_running_state,prev_replica_public_key) is False:
+                    print("caughtup_messages signature mismatch")
+                    return False
+                continue
+
+            curr_replica_hash_of_running_state = caughtup_message.get_hash_of_running_state()
+            curr_replica_signed_hash_of_running_state = caughtup_message.get_signed_hash_of_running_state()
+            curr_replica_public_key = self.public_keys[replica_id]
+
+            if decode_hash_and_verify(curr_replica_hash_of_running_state,curr_replica_signed_hash_of_running_state,curr_replica_public_key) is False or match_hash_with_max_replica(curr_replica_signed_hash_of_running_state,curr_replica_public_key,prev_replica_signed_hash_of_running_state,prev_replica_public_key) is False:
+                #todo find another quorum of replicas
+                print("caughtup_messages mismatch")
+                return False
+            else:
+                prev_replica_hash_of_running_state = curr_replica_hash_of_running_state
+                prev_replica_signed_hash_of_running_state = curr_replica_signed_hash_of_running_state 
+                prev_replica_public_key = curr_replica_public_key
+
+        self.consistent_signed_hash_of_running_state = prev_replica_signed_hash_of_running_state
+        return True
+
+
+    def receive(msg=('running_state_from_replica', replica_id,running_state), from_=client):
+        self.current_running_state = running_state
+        self.caughtup = 1
+
+
+    def receive(msg=('caughtup_message', replica_id,caughtup_message), from_=client):
+        self.count_of_caughtup_messages = self.count_of_caughtup_messages + 1
+        self.caughtup_messages_of_replicas[replica_id] = caughtup_message
+
+    def receive(msg=('wedged_statement_from_replica', wedged_statement,replica_id), from_=client):
         self.count_of_wedged_statements = self.count_of_wedged_statements + 1
-        self.wedged_statements[replica_id] = replica_history
+        self.wedged_statements[replica_id] = wedged_statement
 
     def receive(msg=('client_registered_at_replica', client_id), from_=client):
         self.count_of_registrations[client_id] = self.count_of_registrations[client_id] + 1
@@ -101,8 +412,8 @@ class Olympus(process):
     def run():
         #output("inside olympus run")
         c = logical_clock()
-        for i in range(0, 2 * T + 1):
+        for replica_id in range(0, 2 * T + 1):
             send(
-                ('store_keys', self.public_keys[i], self.private_keys[i], self.public_keys), to=replica_set[i])
-            logger.info("sent: 'store_keys' TO replica_id=%s", str(i))
+                ('store_keys', self.public_keys[replica_id], self.private_keys[replica_id], self.public_keys), to=replica_set[replica_id])
+            logger.info("sent: 'store_keys' TO replica_id=%s", str(replica_id))
         await(received(('done',), from_=self))

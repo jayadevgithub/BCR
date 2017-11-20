@@ -1,3 +1,40 @@
+def get_max(a,b):
+    if a > b:
+        return a
+    else:
+        return b
+
+def get_hash(msg):
+    HASHER = nacl.hash.sha256
+    msg_in_bytes = str(msg).encode('utf-8')
+    dgst = HASHER(msg_in_bytes, encoder=nacl.encoding.HexEncoder)
+    return dgst
+
+def get_signed_hash(msg,private_key):
+    HASHER = nacl.hash.sha256
+    msg_in_bytes = str(msg).encode('utf-8')
+    dgst = HASHER(msg_in_bytes, encoder=nacl.encoding.HexEncoder)
+    signed_message = private_key.sign(dgst)
+    return signed_message
+
+def compare_signed_messages(signed_message1,signed_message2):
+    #print("inside compare_signed_messages")
+    try:
+        #print("hash_digest "+str(hash_digest))
+        #print("new_digest "+str(new_digest))
+        if sodium_memcmp(signed_message1, signed_message2):
+            return True
+        else:
+            return False
+    except:
+        print(
+            "nacl.exceptions.BadSignatureError: Signature was forged or corrupt.")
+        #print("verification 1 failed")
+
+    return False
+
+
+
 def encode_hash(msg, private_key):
     #print("inside encode_hash")
     # print(msg)
@@ -13,35 +50,178 @@ def encode_hash(msg, private_key):
     # print("\n")
     return dgst, signed_message
 
+class ResultCache():
+    def __init__(self,client_id,request_id,result,cached_by_replica_id,replica_private_key,operation):
+        self.client_id = client_id
+        self.request_id = request_id
+        self.result = result
+        self.operation = operation
+        self.cached_by_replica_id = cached_by_replica_id
+        self.result_hashed_value, self.result_signed_value = encode_hash(result, replica_private_key)
+
+
+class CaughtUpMessage():
+    def __init__(self,replica_id):
+        self.replica_id = replica_id
+        self.last_served_request_for_a_client = {}
+        self.running_state = None
+
+    def add_running_state(self,running_state,private_key):
+        self.running_state = running_state
+        concatenated_msg = str(running_state)
+        self.hash_of_running_state, self.signed_hash_of_running_state = encode_hash(concatenated_msg, private_key)
+
+    def add_last_served_request_result_statement(self,client_id,result_proof):
+        self.last_served_request_for_a_client[client_id]=result_proof
+
+    def get_last_result_statement_of_client_at_replica(self,client_id):
+        return self.last_served_request_for_a_client[client_id]
+
+    def get_hash_of_running_state(self):
+        return self.hash_of_running_state
+
+    def get_signed_hash_of_running_state(self):
+        return self.signed_hash_of_running_state
+
+    def get_running_state(self):
+        return self.running_state
+
+
+class ClientRequest():
+    def __init__(self,client_id,request_id,retransmit_id,operation,private_key,client_process):
+        self.client_id = client_id
+        self.request_id = request_id
+        self.retransmit_id = retransmit_id
+        self.operation = operation
+        self.retransmitted = False
+        self.client_process = client_process
+        # concatenated_msg = ""
+        # if retransmit_id is None:
+        #     concatenated_msg = str(client_id) + str(operation) + str(request_id)
+        # else:
+        concatenated_msg = str(client_id) + str(operation) + str(request_id) + str(retransmit_id)
+        self.hash_request, self.signed_hash_request = encode_hash(concatenated_msg, private_key)
+
+    def set_retransmitted_id(self,retransmit_id):
+        self.retransmit_id = retransmit_id
+        self.retransmitted = True
+
+    def get_client_id(self):
+        return self.client_id
+
+    def get_request_id(self):
+        return self.request_id
+
+    def get_retransmit_id(self):
+        return self.retransmit_id
+
+    def get_operation(self):
+        return self.operation
+
+    def get_retransmitted_status(self):
+        return self.retransmitted
+
+    def get_client_process_info(self):
+        return self.client_process
+
+    def set_operation(self,operation):
+        self.operation = operation
+
+    def get_hash_of_client_request(self):
+        concatenated_msg = str(self.client_id) + str(self.operation) + str(self.request_id) + str(self.retransmit_id)
+        return get_hash(concatenated_msg)
+
+    def get_signed_hash_of_client_request(self):
+        return self.signed_hash_request
+
+class CatchupMessage():
+    def __init__(self):
+        self.catchup_statements = {}
+
+    def add_order_statement(self,slot_id,catchup_statement):
+        self.catchup_statements[slot_id] = catchup_statement
+
+    def get_slot_ids(self):
+        return self.catchup_statements.keys()
+
+    def get_catchup_statement_at_slot_id(self,slot_id):
+        return self.catchup_statements[slot_id]
+
+class CatchupStatement():
+
+    def __init__(self,order_stmt):
+        self.slot = order_stmt.get_slot_in_order_statement()
+        self.operation = copy.deepcopy(order_stmt.get_operation_in_order_statement())
+        self.operation_requested_by = order_stmt.get_operation_requested_client_id()
+        self.request_id = order_stmt.get_request_id_sent_by_client()
+    def get_slot_in_catchup_statement(self):
+        return self.slot
+
+    def get_operation_in_catchup_statement(self):
+        return self.operation
+
+    def get_operation_requested_client_id(self):
+        return self.operation_requested_by
+
+    def get_request_id_sent_by_client(self):
+        return self.request_id
+
+class CheckPoint():
+    
+    def __init__(self,hash_of_running_state,signed_hash_of_running_state):
+        self.hash_of_running_state = hash_of_running_state
+        self.signed_hash_of_running_state = signed_hash_of_running_state
+    
+    def get_hash_of_running_state_of_replica(self):
+        return self.hash_of_running_state
+
+    def get_signed_hash_of_running_state_of_replica(self):
+        return self.signed_hash_of_running_state
+
 class CheckPointProof():
-    def __init__(self,checkpoint_identifier):
+    def __init__(self,checkpoint_identifier,start_slot_id,end_slot_id):
         self.checkpoint_id = checkpoint_identifier
-        self.hashes_of_running_state = []
-        self.signed_hashes_of_running_state = []
+        self.start_slot_id = start_slot_id
+        self.end_slot_id = end_slot_id
+        self.checkpoint_of_replicas = {}
+        #self.hashes_of_running_state = {}
+        #self.signed_hashes_of_running_state = {}
+        self.replica_id = None
 
-    def add_to_check_point_proof(self,hash_of_running_state,signed_hash_of_running_state):
-        self.hashes_of_running_state.append(hash_of_running_state)
-        self.signed_hashes_of_running_state.append(signed_hash_of_running_state)
+    def add_to_check_point_proof(self,hash_of_running_state,signed_hash_of_running_state,replica_id):
+        self.replica_id = replica_id
+        checkpoint = CheckPoint(hash_of_running_state,signed_hash_of_running_state)
+        self.checkpoint_of_replicas[replica_id] = checkpoint
+        #self.hashes_of_running_state[replica_id] = hash_of_running_state
+        #self.signed_hashes_of_running_state[replica_id]  = signed_hash_of_running_state
 
-    def get_hashes_of_running_state(self):
-        return self.hashes_of_running_state
+    def get_check_point_terminal_slot_id(self):
+        return self.end_slot_id
+    # def get_hashes_of_running_state(self):
+    #     return self.hashes_of_running_state
 
-    def get_signed_hashes_of_running_state(self):
-        return self.signed_hashes_of_running_state
+    # def get_signed_hashes_of_running_state(self):
+    #     return self.signed_hashes_of_running_state
 
     def get_hash_of_running_state_of_replica(self,replica_id):
-        return self.hashes_of_running_state[replica_id]
+        return self.checkpoint_of_replicas[replica_id].get_hash_of_running_state_of_replica()
 
     def get_signed_hash_of_running_state_of_replica(self,replica_id):
-        return self.signed_hashes_of_running_state[replica_id]
+        return self.checkpoint_of_replicas[replica_id].get_signed_hash_of_running_state_of_replica()
+
+    def get_count_of_replicas_with_checkpoint(self):
+        return len(self.checkpoint_of_replicas)
+
+    def get_replicas_in_checkpoint(self):
+        return self.checkpoint_of_replicas.keys()
 
 class History():
 
     def __init__(self):
-        self.order_proof_for_each_slot = []
+        self.order_proof_for_each_slot = {}
 
-    def add_order_proof_to_history(self, order_proof):
-        self.order_proof_for_each_slot.append(order_proof)
+    def add_order_proof_to_history(self, slot_id,order_proof):
+        self.order_proof_for_each_slot[slot_id] = order_proof
 
     def get_order_proofs(self):
         return self.order_proof_for_each_slot
@@ -50,25 +230,55 @@ class History():
         #print("order_proof_for_each_slot "+str(self.order_proof_for_each_slot))
         del self.order_proof_for_each_slot[slot_id]
 
+    def get_order_proof_at_slot(self,slot_id):
+        if slot_id in self.order_proof_for_each_slot:
+            return self.order_proof_for_each_slot[slot_id]
+        else:
+            return None
+
+    def get_count_of_slots(self):
+        return len(self.order_proof_for_each_slot)
+
 class CachedResult():
 
     def __init__(self, result, result_shuttle):
         self.result = result
         self.result_shuttle = result_shuttle
 
+class WedgedStatement():
+
+    def __init__(self,history,check_point_proof,checkpoint_identifier):
+        self.history = history
+        self.checkpoint_proof = check_point_proof
+        self.checkpoint_id = checkpoint_identifier
+
+    def get_history_from_wedged_statement(self):
+        return self.history
+
+    def get_last_check_point_proof(self):
+        return self.checkpoint_proof
+
+    def get_checkpoint_id(self):
+        return self.checkpoint_id
+
+    def get_count_of_slots(self):
+        return self.history.get_count_of_slots()
+
+    def get_order_proof_at_slot(self,slot_id):
+        return self.history.get_order_proof_at_slot(slot_id)
 
 class OrderStatement():
 
-    def __init__(self, slot, operation, replica_id, private_key):
+    def __init__(self, slot, operation, replica_id, private_key,client_id,request_id):
         # todo
-
         self.slot = slot
         self.operation = operation
         concatenated_msg = str(slot) + str(operation)
         self.hash_operation, self.signed_hash = encode_hash(
             concatenated_msg, private_key)
         self.replica_id = replica_id
-
+        self.operation_requested_by = client_id
+        self.request_id = request_id
     def get_order_statement_as_string(self):
         concatenated_msg = str(self.slot) + str(self.operation)
         # HASHER = nacl.hash.sha256
@@ -77,6 +287,23 @@ class OrderStatement():
         #print(concatenated_msg)
         return concatenated_msg
 
+    def get_slot_in_order_statement(self):
+        return self.slot
+
+    def get_operation_in_order_statement(self):
+        return self.operation
+
+    def get_hash_of_order_statement(self):
+        return self.hash_operation
+
+    def get_signed_hash_of_order_statement(self):    
+        return self.signed_hash
+
+    def get_operation_requested_client_id(self):
+        return self.operation_requested_by
+
+    def get_request_id_sent_by_client(self):
+        return self.request_id
 
 class ResultProof():
     #Config_Id =None
@@ -85,50 +312,92 @@ class ResultProof():
         # todo
         self.operation = operation
         self.replica_id = replica_id
+        self.result = result
         self.result_hashed_value, self.result_signed_value = encode_hash(
             result, private_key)
         # print(self.result_hashed_value)
         #print("replica_id"+str(replica_id)+" result "+str(result))
         #print(self.result_signed_value)
+    def get_result_signed_value_from_result_proof(self):
+        return self.result_signed_value
+
+    def get_result_hashed_value_from_result_proof(self):
+        return self.result_hashed_value
+
+    def get_operation_from_result_proof(self):
+        return self.operation
 
 
 class OrderProof():
     #Config_Id =None
 
-    def __init__(self, slot, operation, replica_Id):
+    def __init__(self, slot, operation, replica_id):
         self.slot = slot
         self.operation = operation
-        self.replica_Id = replica_Id
-        self.order_statements = []
+        self.replica_id = replica_id
+        self.order_statements = {}
         #self.Config_Id = Config_Id
 
-    def add_order_statment(self, order_statement):
+    def add_order_statment(self, replica_id, order_statement):
         #print("order_statements_length "+str(len(self.order_statements)))
-        self.order_statements.append(order_statement)
+        self.order_statements[replica_id] = order_statement
         #print("order_statements "+str(self.order_statements))
         #print("order_statements_length "+str(len(self.order_statements)))
 
-    def set_replica_id_in_order_proof(self, replica_Id):
-        self.replica_Id = replica_Id
+    def set_replica_id_in_order_proof(self, replica_id):
+        self.replica_id = replica_id
 
     def get_order_statements_from_order_proof(self):
         return self.order_statements
 
+    def get_count_of_order_statements_from_order_proof(self):
+        return len(self.order_statements)
+
+    # def get_order_statement_at_slot(self,slot_id):
+    #     return self.order_statements[slot_id]
+
+    def get_order_statement_of_replica(self,replica_id):
+        return self.order_statements[replica_id]
+
+
+class ResultShuttle():
+
+    def __init__(self):
+        self.result_proofs = {}
+
+    def add_result_proof_at_replica_id(self,replica_id,cached_result):
+        self.result_proofs[replica_id] = cached_result
+
+    def get_cached_result_at_replica(self,replica_id):
+        return self.result_proofs[replica_id]
+
+
+
+
 class Shuttle():
 
-    def __init__(self, slot, operation):
+    def __init__(self, slot, operation=None):
         self.order_proof = OrderProof(slot, operation, None)
-        self.result_proofs = []
+        self.result_proofs = {}
 
-    def add_order_statement_to_order_proof_in_shuttle(self, order_statement):
+    def add_order_statement_to_order_proof_in_shuttle(self, replica_id, order_statement):
         #print("adding order order_statement")
         new_order_statement = copy.deepcopy(order_statement)
-        self.order_proof.add_order_statment(new_order_statement)
+        self.order_proof.add_order_statment(replica_id,new_order_statement)
         #print("order_statements length "+str(len(self.order_proof.order_statements)))
 
-    def add_result_proof_to_shuttle(self, result_proof):
+    def add_result_proof_to_shuttle(self, replica_id,result_proof):
         #new_result_proof = copy.copy(result_proof)
-        self.result_proofs.append(result_proof)
+        self.result_proofs[replica_id] = result_proof
+
+    def get_result_proofs_from_shuttle(self):
+        return self.result_proofs
+
+    def get_replica_ids_from_shuttle(self):
+        return self.result_proofs.keys()
+
+    def get_result_proof_of_replica(self,replica_id):
+        return self.result_proofs[replica_id]
 
     def get_order_proof_from_shuttle(self):
 
@@ -137,9 +406,16 @@ class Shuttle():
         #print("old_order_proof "+str(self.order_proof))
         #print("old_order_proof "+str(self.order_proof))
         return new_order_proof
+
+    def get_order_proof_from_shuttle(self):
+        return self.order_proof
+
+    def get_count_of_result_proofs_in_shuttle(self):
+        return len(self.result_proofs)
+
     def drop_result_proof_from_shuttle(self,index):
         if len(self.result_proofs) > 0:
             del self.result_proofs[index]
         else:
-            logger.error("result proofs is empty")
-            print("result proofs is empty")
+            #logger.error("result proofs is empty")
+            print("error_result_proof_method: result proofs is empty")
