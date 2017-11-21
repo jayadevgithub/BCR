@@ -59,6 +59,53 @@ class ResultCache():
         self.cached_by_replica_id = cached_by_replica_id
         self.result_hashed_value, self.result_signed_value = encode_hash(result, replica_private_key)
 
+    def get_result_signed_value_from_result_proof(self):
+        return self.result_signed_value
+
+    def get_result_hashed_value_from_result_proof(self):
+        return self.result_hashed_value
+
+    def get_client_id(self):
+        return self.client_id
+
+    def get_request_id(self):
+        return self.request_id
+
+    def get_result(self):
+        return self.result
+
+class ResultShuttle():
+
+    def __init__(self):
+        self.result_proofs = {}
+        self.client_id = None
+        self.request_id = None
+        self.result = None
+
+    def add_result_proof_at_replica_id(self,replica_id,cached_result):
+        self.result_proofs[replica_id] = cached_result
+        if self.client_id is not None and self.request_id is not None:
+            print("replica_id"+str(replica_id)+"old_client_id "+str(self.client_id)+" old_request_id"+str(self.request_id))
+        self.client_id = cached_result.get_client_id()
+        self.request_id = cached_result.get_request_id()
+        self.result = cached_result.get_result()
+        print("replica_id"+str(replica_id)+"new_client_id "+str(self.client_id)+" new_request_id"+str(self.request_id))
+    
+    def get_result_proof_of_replica(self,replica_id):
+        return self.result_proofs[replica_id]
+
+    def get_replica_ids_from_shuttle(self):
+        return self.result_proofs.keys()
+
+    def get_client_id(self):
+        return self.client_id
+
+    def get_request_id(self):
+        return self.request_id
+
+    def get_result(self):
+        return self.result
+
 
 class CaughtUpMessage():
     def __init__(self,replica_id):
@@ -154,6 +201,7 @@ class CatchupStatement():
         self.operation = copy.deepcopy(order_stmt.get_operation_in_order_statement())
         self.operation_requested_by = order_stmt.get_operation_requested_client_id()
         self.request_id = order_stmt.get_request_id_sent_by_client()
+        #self.operation = order_stmt.get_operation_requested_client_id() #
     def get_slot_in_catchup_statement(self):
         return self.slot
 
@@ -358,18 +406,6 @@ class OrderProof():
 
     def get_order_statement_of_replica(self,replica_id):
         return self.order_statements[replica_id]
-
-
-class ResultShuttle():
-
-    def __init__(self):
-        self.result_proofs = {}
-
-    def add_result_proof_at_replica_id(self,replica_id,cached_result):
-        self.result_proofs[replica_id] = cached_result
-
-    def get_cached_result_at_replica(self,replica_id):
-        return self.result_proofs[replica_id]
 
 
 

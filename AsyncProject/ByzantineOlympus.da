@@ -1,7 +1,12 @@
 
 class Olympus(process):
 
-    def setup(T: int, count: int, replica_Set: set):
+    #def setup(T: int, count: int, replica_Set: set):
+    def setup(T: int, count: int,config_file: string):
+
+        self.Active = "Active"
+        self.Immutable = "Immutable"
+        self.config_file_name = config_file
         self.client_info = {}
         self.replica_set = {}
         self.public_keys = {}
@@ -21,57 +26,64 @@ class Olympus(process):
         self.handler.setFormatter(formatter)
         self.logger.addHandler(handler)
         self.T = T  # readFromConfig()
-        self.caughtup = 0
+        self.has_received_running_state_from_random_replica = 0
         self.consistent_signed_hash_of_running_state = None
         self.current_running_state = None
-        count = 0
-        for replica_id,replica in enumerate(replica_Set):
-            self.replica_set[replica_id] = replica
-            if count == 0:
-                self.head_replica = replica
-            elif count == len(replica_Set) - 1:
-                self.tail_replica = replica
-            count = count + 1
-
+        self.parent_process = None
+        self.head_replica = None
+        self.tail_replica = None
         #output('in setup olympus')
-        initConfiguration(T, replica_set)
+        self.total_replica_count = 2*T+1
+        self.configuration_id = 0
+        #self.configuration_status = self.Active
+        setup_replicas()
+        setup_parentprocess()
 
         #output('generating keys done at olympus')
 
+    def setup_parentprocess():
+        self.parent_process = new(ParentProcess, num=1)
+        #parent_process = new(ParentProcess, num=1, at='ParentNode')
+        setup(parent_process, (total_replica_count,))
+        logger.info("Starting ParentProcess")
+        start(parent_process)
+
+    def reinitialize_setup_info_in_olympus():
+        self.replica_set = {}
+        self.public_keys = {}
+        self.private_keys = {}
+        self.count_of_registrations = {}
+        self.count_of_wedged_statements = 0
+        self.count_of_caughtup_messages = 0
+        self.caughtup_messages_of_replicas = {}
+        #self.client_process_info = {}
+        self.wedged_statements = {}
+        self.has_received_running_state_from_random_replica = 0
+        self.consistent_signed_hash_of_running_state = None
+        self.current_running_state = None
+        self.head_replica = None
+        self.tail_replica = None
+        self.configuration_id = self.configuration_id + 1
+        for client_id in client_info:
+            self.count_of_registrations[client_id] = 0
+   
     def setup_replicas():
-
-    def receive(msg=('register_client_at_olympus', public_key, client_id), from_=client):
-        logger.info(
-            "received: 'register_client_at_olympus' FROM client_id=%s", str(client_id))
-        #--request
-        #current_clock = logical_clock()
-        self.client_info[client_id] = public_key
-        self.client_process_info[client_id] = client
-        self.count_of_registrations[client_id] = 0
-        #output('inside olympus ' + str(client_id) + str(current_clock))
-        # output(current_clock)
-        #--criticalsection
-        send(('add_client_at_replica', public_key, client_id), to=replica_set.values())
-        logger.info(
-            "sent: 'add_client_at_replica'-client_id=%s, TO all the replicas", str(client_id))
-        # await(each(replica in replica_set,
-        # 		   has=some(
-        # 			   received(
-        # 				   ('client_registered_at_replica', new_clock, replica)),
-        # 			   has=(new_clock == current_clock)
-        # 		   )
-        # 		   )  # outer each
-        # 	  )  # await
-        #--release
-        #output('olympus done with this ' + str(client_id) + str(client))
-        await(self.count_of_registrations[client_id] == len(replica_set))
-        send(('client_registered_at_olympus',), to=client)
-        logger.info(
-            "sent: 'client_registered_at_olympus' TO client_id=%s", str(client_id))
-    # def receive(msg=('client_added',),from_)
-
-    def initConfiguration(T, replica_set):
-        #		HASHER = nacl.hash.sha256
+        print("creating new replicas")
+        replica_list = new(Replica, num=total_replica_count)
+        #replica_set = new(Replica, num=total_replica_count, at='ReplicaNode')
+        replica_id = 0
+        for replica in replica_list:
+            setup(replica, (replica_list, replica_id,config_file_name,configuration_id))
+            self.replica_set[replica_id] = replica
+            if replica_id == 0:
+                self.head_replica = replica
+            elif replica_id == len(replica_list) - 1:
+                self.tail_replica = replica
+            replica_id = replica_id + 1
+        start(replica_list)
+        logger.info("%s Replicas started", str(total_replica_count))
+        print("replica_list "+str(replica_list))
+        #generate_cryptographic_keys_for_replicas
         for replica_id in range(0, 2 * T + 1):
             key = nacl.utils.random(nacl.secret.SecretBox.KEY_SIZE)
             #print("key :"+str(key))
@@ -80,6 +92,43 @@ class Olympus(process):
             public_key = private_key.verify_key
             public_keys[replica_id] = public_key
             private_keys[replica_id] = private_key
+
+    def send_cryptographic_keys_to_replicas():
+        for replica_id in range(0, 2 * T + 1):
+            send(('store_keys', self.public_keys[replica_id], self.private_keys[replica_id], self.public_keys), to=replica_set[replica_id])
+            logger.info("sent: 'store_keys' TO replica_id=%s", str(replica_id))
+
+    def initialize_replicas_with_running_state(running_state):
+        for replica_id in range(0, 2 * T + 1):
+            send(('save_running_state', running_state), to=replica_set[replica_id])
+            logger.info("sent: 'running_state' TO replica_id=%s", str(replica_id))
+
+    def register_clients_at_replica():
+        for client_id in client_info:
+            public_key = self.client_info[client_id]
+            send(('add_client_at_replica', public_key, client_id), to=replica_set.values())
+            logger.info("sent: 'add_client_at_replica'-client_id=%s, TO all the replicas", str(client_id))
+            #self.count_of_registrations[client_id] = 3
+            #print("len(replica_set) "+str(len(replica_set)) +" self.count_of_registrations[client_id] "+str(self.count_of_registrations[client_id]))            
+            #print("registration done for client_id "+str(client_id))
+    
+    def receive(msg=('register_client_at_olympus', public_key, client_id), from_=client):
+        logger.info("received: 'register_client_at_olympus' FROM client_id=%s", str(client_id))
+        self.client_info[client_id] = public_key
+        self.client_process_info[client_id] = client
+        self.count_of_registrations[client_id] = 0
+
+        send(('add_client_at_replica', public_key, client_id), to=replica_set.values())
+        logger.info("sent: 'add_client_at_replica'-client_id=%s, TO all the replicas", str(client_id))
+        await(self.count_of_registrations[client_id] == len(replica_set))
+        send(('client_registered_at_olympus',parent_process), to=client)
+        logger.info("sent: 'client_registered_at_olympus' TO client_id=%s", str(client_id))
+
+    def receive(msg=('client_registered_at_replica', client_id,replica_id), from_=client):
+        logger.info("client_registered_at_replica: client:%s,at the replica:%s", str(client_id),str(replica_id))
+        
+        self.count_of_registrations[client_id] = self.count_of_registrations[client_id] + 1
+        #print("len(replica_set) "+str(len(replica_set)) +" self.count_of_registrations[client_id] "+str(self.count_of_registrations[client_id]))
 
 
     def get_maximal_order_proof_replica_index(faulty_replica_indices):
@@ -201,7 +250,7 @@ class Olympus(process):
                 logger.error("Invalid checkpoint proof,checkpoint proof is not complete,missing replica proofs")
                 continue
             else:
-                return check_point_proof.get_check_point_terminal_slot_id()
+                return checkpoint_proof.get_check_point_terminal_slot_id()
 
             #todo all the check point proofs are invalid we need to quit or do something
 
@@ -285,11 +334,11 @@ class Olympus(process):
                 break
 
             (valid_quorum_of_replicas,catchup_messages) = get_valid_quorum_of_replicas(max_order_proof_replica_index,next_slot_id)
-            print("here 1 "+str(valid_quorum_of_replicas))
+            #print("here 1 "+str(valid_quorum_of_replicas))
             if len(valid_quorum_of_replicas) == T + 1:
                 print("T+1 replicas found ")
                 break
-            print("here 2")
+            #print("here 2")
             faulty_replica_indices.append(max_order_proof_replica_index)
 
         if max_order_proof_replica_index is None:
@@ -312,15 +361,7 @@ class Olympus(process):
         await(self.count_of_caughtup_messages == len(valid_quorum_of_replicas))
 
         if validate_runningstate_in_caughtup_messages() is True:
-
-            for client_id in self.client_process_info:
-                shuttle = ResultShuttle()
-                for replica_id in caughtup_messages_of_replicas:
-                    caughtup_message = caughtup_messages_of_replicas[replica_id]
-                    result_statement = caughtup_message.get_last_result_statement_of_client_at_replica(client_id)
-                    shuttle.add_result_proof_at_replica_id(replica_id,result_statement)
-                client_process = self.client_process_info[client_id]
-                send(('last_served_request',shuttle),to=client_process)
+            #self.configuration_status = self.Immutable
             #now send caughtup message request to some random replica id
 
             quorum_of_replicas = copy.deepcopy(valid_quorum_of_replicas)
@@ -331,8 +372,8 @@ class Olympus(process):
                 replica_id = quorum_of_replicas[random_replica_index]
                 
                 send(('get_running_state',),to = replica_set[replica_id])
-                self.caughtup = 0
-                await(self.caughtup == 1)
+                self.has_received_running_state_from_random_replica = 0
+                await(self.has_received_running_state_from_random_replica == 1)
                 caughtup_message = caughtup_messages_of_replicas[replica_id]
                 del quorum_of_replicas[random_replica_index]
 
@@ -344,11 +385,44 @@ class Olympus(process):
             if valid_running_state is None:
                 print("running_states are not consistent,need to do abort the system")
             else:
-                print("need to do inithist with the valid running_state")
-                pass
-
+                send(('terminate_replica',),to =replica_set.values())
+                #perform_reconfiguration(running_state)
+                print("performing reconfiguration with valid running_state "+str(valid_running_state))
+                perform_reconfiguration(valid_running_state)                
         else:
             print("validate_runningstate_in_caughtup_messages failed")
+
+    def perform_reconfiguration(running_state):
+        client_process_info_temp = copy.deepcopy(self.client_process_info)
+        caughtup_messages_of_replicas_temp = copy.deepcopy(self.caughtup_messages_of_replicas)
+        reinitialize_setup_info_in_olympus()
+        setup_replicas()
+        send_cryptographic_keys_to_replicas()
+        initialize_replicas_with_running_state(running_state)
+        # work()
+        # work()
+        # work()
+        # work()
+        # work()
+        # work()
+        # work()
+        # work()
+        # work()
+        register_clients_at_replica()
+        for client_id in client_process_info_temp:
+            shuttle = ResultShuttle()
+            for replica_id in caughtup_messages_of_replicas_temp:
+                caughtup_message = caughtup_messages_of_replicas_temp[replica_id]
+                result_statement = caughtup_message.get_last_result_statement_of_client_at_replica(client_id)
+                shuttle.add_result_proof_at_replica_id(replica_id,result_statement)
+            client_process = client_process_info_temp[client_id]
+            await(self.count_of_registrations[client_id] == len(replica_set))
+            send(('last_served_request',shuttle),to=client_process)
+
+        print("before configuration_status ")
+
+        #self.configuration_status = self.Active
+        #print("after configuration_status "+str(self.configuration_status))
 
     def validate_runningstate_in_caughtup_messages():
         prev_replica_hash_of_running_state = None
@@ -373,6 +447,8 @@ class Olympus(process):
 
             if decode_hash_and_verify(curr_replica_hash_of_running_state,curr_replica_signed_hash_of_running_state,curr_replica_public_key) is False or match_hash_with_max_replica(curr_replica_signed_hash_of_running_state,curr_replica_public_key,prev_replica_signed_hash_of_running_state,prev_replica_public_key) is False:
                 #todo find another quorum of replicas
+                print("prev_replica_hash_of_running_state "+str(prev_replica_hash_of_running_state))
+                print("curr_replica_hash_of_running_state "+str(curr_replica_hash_of_running_state))
                 print("caughtup_messages mismatch")
                 return False
             else:
@@ -383,11 +459,9 @@ class Olympus(process):
         self.consistent_signed_hash_of_running_state = prev_replica_signed_hash_of_running_state
         return True
 
-
     def receive(msg=('running_state_from_replica', replica_id,running_state), from_=client):
         self.current_running_state = running_state
-        self.caughtup = 1
-
+        self.has_received_running_state_from_random_replica = 1
 
     def receive(msg=('caughtup_message', replica_id,caughtup_message), from_=client):
         self.count_of_caughtup_messages = self.count_of_caughtup_messages + 1
@@ -397,23 +471,19 @@ class Olympus(process):
         self.count_of_wedged_statements = self.count_of_wedged_statements + 1
         self.wedged_statements[replica_id] = wedged_statement
 
-    def receive(msg=('client_registered_at_replica', client_id), from_=client):
-        self.count_of_registrations[client_id] = self.count_of_registrations[client_id] + 1
+    def receive(msg=('get_current_active_configuration_from_olympus',client_id), from_=client):
+        logger.info("received: 'get_current_active_configuration_from_olympus' FROM client_id=%s", str(client))
+        
 
-    def receive(msg=('get_current_active_configuration_from_olympus',), from_=client):
-        logger.info(
-            "received: 'get_current_active_configuration_from_olympus' FROM client_id=%s", str(client))
+        #await(self.configuration_status == self.Active)
+        
         #output("inside get active configuration from olympus at olympus " + str(client))
-        send(('received_active_configuration_at_client',
-              replica_set, public_keys), to=client)
+        send(('received_active_configuration_at_client',replica_set, public_keys), to=client)
         logger.info(
             "sent: 'received_active_configuration_at_client' TO client_id=%s", str(client))
 
     def run():
         #output("inside olympus run")
         c = logical_clock()
-        for replica_id in range(0, 2 * T + 1):
-            send(
-                ('store_keys', self.public_keys[replica_id], self.private_keys[replica_id], self.public_keys), to=replica_set[replica_id])
-            logger.info("sent: 'store_keys' TO replica_id=%s", str(replica_id))
+        send_cryptographic_keys_to_replicas()
         await(received(('done',), from_=self))

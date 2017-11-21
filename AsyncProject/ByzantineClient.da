@@ -1,14 +1,15 @@
 class Client(process):
+
     def generate_crypto_keys():
         key = nacl.utils.random(nacl.secret.SecretBox.KEY_SIZE)
         naclObject = nacl.signing.SigningKey(key)
         self.private_key = naclObject.generate()
         self.public_key = private_key.verify_key
 
-    def setup(client_id: int, olympus: Olympus, parent_process: ParentProcess, T: int,config_file: string):
+    def setup(client_id: int, olympus: Olympus, T: int,config_file: string):
 
         self.config_file_name = config_file
-        self.parent_process = parent_process
+        self.parent_process = None
         self.olympus = olympus
         self.client_id = client_id  # str(uuid.uuid4())
         self.request_id = 0
@@ -30,8 +31,9 @@ class Client(process):
         #self.handler = logging.FileHandler('_client.log')
         self.handler = logging.FileHandler(str(timestamp) + '_client.log')
         self.handler.setLevel(logging.INFO)
-        self.formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        self.formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+        #self.formatter = logging.Formatter('%(name)s - %(message)s')
         self.handler.setFormatter(formatter)
         self.logger.addHandler(handler)
         self.switch = 0
@@ -39,6 +41,12 @@ class Client(process):
         self.parent_request_switch = 0
         self.parent_switch = 0
         self.verified_result = {}
+        #self.waiting_for_new_configuration = 2
+        self.received_active_config_at_client = 0 
+        self.operations = None
+        self.operation_count = 0
+        self.operation_iter = None
+        self.temp_count = 0
         #self.hash_error_message = get_hashed_message('Failed')
 
     def is_verified_result(client_id, request_id):
@@ -92,9 +100,9 @@ class Client(process):
         # print(hash_digest)
         # print(new_digest)
         # print("\n\n\n")
+  
     def receive(msg=('received_active_configuration_at_client', replica_set, public_keys), from_=olympus):
-        logger.info(
-            "received: 'received_active_configuration_at_client' FROM Olympus")
+        logger.info("received: 'received_active_configuration_at_client' FROM Olympus")
         count = 0
         for replica_id in range(0, len(replica_set)):
             replica = replica_set[replica_id]
@@ -109,14 +117,28 @@ class Client(process):
         for replica_id in public_keys:
             replica_public_key = public_keys[replica_id]
             self.replica_public_keys[replica_id] = replica_public_key
-
-    def receive(msg=('client_registered_at_olympus',), from_=olympus):
+        self.received_active_config_at_client = 1
+        print("replica_set "+str(replica_set))
+    def receive(msg=('client_registered_at_olympus',parent_process), from_=olympus):
         logger.info("received: 'client_registered_at_olympus' FROM Olympus")
         logger.info("client_id=%s is successfully registered", str(client_id))
+        self.parent_process = parent_process
         #output(str(client_id) + 'is successfully registered yoo ')
 
-    def receive(msg=('last_served_request',shuttle), from_=olympus):
+    def receive(msg=('last_served_request',result_shuttle), from_=olympus):
         logger.info("received: 'last_served_request' shuttle FROM Olympus")
+        #count  = get_count_valid_result_proofs(result_shuttle)
+        print("last_served_request: client_id "+str(result_shuttle.get_client_id())+" request_id "+str(result_shuttle.get_request_id()))
+        response_request_id = result_shuttle.get_request_id()
+        result = result_shuttle.get_result()
+        process_result_shuttle(result,response_request_id,result_shuttle)
+        get_active_configuration_from_olympus()
+        await(self.received_active_config_at_client == 1)
+        print("done received_active_config_at_client after reconfiguration")
+        self.request_id = self.request_id + 1
+        self.temp_count = self.temp_count +1
+        handle_operation()
+        #self.waiting_for_new_configuration = 2
 
     def receive(msg=('parent_sent_result', result_parent), from_=parent_process):
         logger.info("received: 'parent_sent_result'")
@@ -125,139 +147,171 @@ class Client(process):
         #print("hash of result from parent process "+str(self.hash_result_from_parent_process))
         self.parent_switch = 2
 
+    def get_count_valid_result_proofs(result_shuttle):
+        count = 0
+        replica_ids = result_shuttle.get_replica_ids_from_shuttle()
+        #print("replica_ids "+str(replica_ids))
+        for replica_id in replica_ids:
+            
+            #print("Came here 1")
+            replica_public_key = replica_public_keys[replica_id]
+            replica_result_proof = result_shuttle.get_result_proof_of_replica(replica_id)
+            replica_result_signed_value = replica_result_proof.get_result_signed_value_from_result_proof()
+            replica_result_hashed_value = replica_result_proof.get_result_hashed_value_from_result_proof()
+            #print("Came here 2 "+str(replica_result_hashed_value)+" replica_id "+str(replica_id) + " hash_value_from_parent "+str(hash_result_from_parent_process))
+            result_hashed_value = get_unsigned_hash(replica_public_key,replica_result_signed_value)
+            #print("result_hashed_value @replica "+str(result_hashed_value))
+            if(decode_hash_and_verify(replica_result_hashed_value, replica_result_signed_value, replica_public_key) and compare_hashes(replica_result_hashed_value,hash_result_from_parent_process)):
+                count += 1
+
+        return count
+
+    def process_result_shuttle(result,response_request_id,result_shuttle):
+        cache_key = '00000'+str(client_id)+'11111' + str(response_request_id)
+        #cache_key = str(client_id) + str(response_request_id)
+        self.verified_result[cache_key] = True
+        #output("received: 'result_shuttle' FROM tail_replica with result"+ str(result)+" client_id "+str(client_id)+" with seq id"+str(self.global_seq_id))
+        logger.info("processing the result and result_shuttle at client_id:%s,for request_id:%s ",str(client_id),str(response_request_id))
+
+        send(('get_result_from_parent_process',self.global_seq_id), to=parent_process)
+        #output("client_id " +str(client_id) +" has received GLobal seq id "+str(global_seq_id))
+
+        self.parent_switch = 1
+        await(self.parent_switch == 2)
+
+        count = get_count_valid_result_proofs(result_shuttle)
+
+        logger.info("seq=%s, result_from_parent_process=%s, result=%s ,result_proof_match_count=%s,actual_count=%s", str(
+            self.global_seq_id), str(self.result_from_parent_process), str(result),str(count),str((2*T+1)))
+
+
+        if(count < self.T + 1):
+            logger.error("need to call reconfig provable case of misbehaviour detected for client_id:%s,request_id:%s result proofs are invalid",str(client_id), str(response_request_id))
+            #self.waiting_for_new_configuration = 1
+            #await(waiting_for_new_configuration == 2)
+            # failure
+            return False
+        else:
+            logger.info("verified result for client_id:%s,request_id:%s ", str(
+                client_id), str(response_request_id))
+            return True
+
     def receive(msg=('result_shuttle', result_shuttle, result,replica_id,response_request_id), from_=tail_replica):
-        logger.info(
-            "received: 'result_shuttle' FROM replica:%s for request_id:%s with result=%s",str(replica_id),str(response_request_id), str(result))
+        logger.info("received: 'result_shuttle' FROM replica:%s for request_id:%s WITH result=%s",str(replica_id),str(response_request_id), str(result))
         if is_verified_result(client_id,response_request_id) is False:
-            cache_key = '00000'+str(client_id)+'11111' + str(response_request_id)
-            #cache_key = str(client_id) + str(response_request_id)
-            self.verified_result[cache_key] = True
-            #output("received: 'result_shuttle' FROM tail_replica with result"+ str(result)+" client_id "+str(client_id)+" with seq id"+str(self.global_seq_id))
-            logger.info("processing the result and result_shuttle at client_id:%s,for request_id:%s ",str(client_id),str(response_request_id))
 
-            send(('get_result_from_parent_process',
-                  self.global_seq_id), to=parent_process)
-            #output("client_id " +str(client_id) +" has received GLobal seq id "+str(global_seq_id))
-
-            self.parent_switch = 1
-            await(self.parent_switch == 2)
-
-
-            count = 0
-            replica_ids = result_shuttle.get_replica_ids_from_shuttle()
-            #print("replica_ids "+str(replica_ids))
-            for replica_id in replica_ids:
-                
-                #print("Came here 1")
-                replica_public_key = replica_public_keys[replica_id]
-                replica_result_proof = result_shuttle.get_result_proof_of_replica(replica_id)
-                replica_result_signed_value = replica_result_proof.get_result_signed_value_from_result_proof()
-                replica_result_hashed_value = replica_result_proof.get_result_hashed_value_from_result_proof()
-                #print("Came here 2 "+str(replica_result_hashed_value)+" replica_id "+str(replica_id) + " hash_value_from_parent "+str(hash_result_from_parent_process))
-                result_hashed_value = get_unsigned_hash(replica_public_key,replica_result_signed_value)
-                #print("result_hashed_value @replica "+str(result_hashed_value))
-                if(decode_hash_and_verify(replica_result_hashed_value, replica_result_signed_value, replica_public_key) and compare_hashes(replica_result_hashed_value,hash_result_from_parent_process)):
-                    count += 1
-
-            logger.info("seq=%s, result_from_parent_process=%s, result=%s ,result_proof_match_count=%s,actual_count=%s", str(
-                self.global_seq_id), str(self.result_from_parent_process), str(result),str(count),str((2*T+1)))
-
-
-            if(count < self.T + 1):
-                logger.error("need to call reconfig provable case of misbehaviour detected for client_id:%s,request_id:%s result proofs are invalid",str(client_id), str(response_request_id))
-                waiting_for_new_configuration = 1
-                await(waiting_for_new_configuration == 2)
-                # failure
-            else:
-                logger.info("verified result for client_id:%s,request_id:%s ", str(
-                    client_id), str(response_request_id))
+            valid_response = process_result_shuttle(result,response_request_id,result_shuttle)
                 #output('verified result')
                 #logger.info("sent: 'verified_result' TO self")
             self.switch = 2
             self.retransmit_switch = 2
-            #output(" verified the result")
+
+            self.request_id = self.request_id + 1
+            self.temp_count = self.temp_count +1
+            if valid_response is True:
+                print("verified_the_result "+str(result)+" at client_id "+str(client_id) +" request_id is "+str(request_id-1))
+                #print(" verified the result request_id:"+str(request_id)+" client_id")
+                print("sending next op")
+                if self.temp_count < self.operation_count:
+                    handle_operation()
+
+            
 
     def receive(msg=('parent_performed_operation', globalseqid), from_=parent_process):
         logger.info(
-            "received: 'parent_performed_operation' from parent_process")
+            "received: 'parent_performed_operation' FROM parent_process")
 
         self.global_seq_id = globalseqid
         #output("client_id " +str(client_id) +" has received GLobal seq id "+str(global_seq_id)+" \n")
         self.parent_request_switch = 2
 
-    def run():
+    def get_active_configuration_from_olympus():
+        self.received_active_config_at_client = 0
+        send(('get_current_active_configuration_from_olympus',client_id), to=olympus)
+        logger.info("sent: 'get_current_active_configuration_from_olympus' TO Olympus")
 
+    def register_client_and_get_active_configuration_from_olympus():
         send(('register_client_at_olympus', public_key, client_id), to=olympus)
-        logger.info(
-            "sent: 'register_client_at_olympus' with client_id=%s TO Olympus", str(client_id))
-        await(some(received(('client_registered_at_olympus',), from_=olympus)))
+        logger.info("sent: 'register_client_at_olympus' WITH client_id=%s TO Olympus", str(client_id))
+        await(some(received(('client_registered_at_olympus',_), from_=olympus)))
         #output("inside client after registration " + str(self))
         logger.info("client_id=%s registered at Olympus", str(client_id))
+        get_active_configuration_from_olympus()
 
-        send(('get_current_active_configuration_from_olympus',), to=olympus)
-        logger.info(
-            "sent: 'get_current_active_configuration_from_olympus' TO Olympus")
-        await(
-            some(received(('received_active_configuration_at_client', _, _), from_=olympus)))
+    def get_operation():
+        #operations = [{1:"a"},{2:"b"},{3:"c"}]
+
+        for operation in self.operations:
+            yield operation
+
+    def handle_operation():
+        if self.temp_count >= self.operation_count:
+            return
+        operation = next(self.operation_iter)
+        print("operation is "+str(operation) + " at client_id "+str(client_id) +" request_id is "+str(request_id))
+        logger.info("sent: 'perform_operation' WITH client_id=%s, request_id=%s,operation=%s TO head_replica", str(
+            client_id), str(request_id),str(operation))
+
+        send(('parent_perform_operation', client_id,request_id, operation), to=parent_process)
+        self.parent_request_switch = 1
+        await(self.parent_request_switch == 2)
+
+        self.switch = 1
+        self.retransmit_switch = 1
+        client_request = ClientRequest(client_id,request_id,retransmit_id,operation,self.private_key,self)
+        send(('perform_operation',client_request,None, None, None),to=head_replica)
+
+        logger.info("sent: 'parent_verify' to parent_process")
+        #print("client_timeout "+str(client_timeout))
+        if await(self.switch == 2):
+            logger.info("operation:%s completed done by the client:%s", str(
+                operation), str(client_id))
+            #self.request_id = self.request_id + 1
+            #output(" got the iddd for client_id "+str(client_id)+" for request_id "+str(request_id) + " gs "+str(global_seq_id) )
+        elif timeout(self.client_timeout):
+            output("TIMEOUT occurred, retransmitting request to all replicas")
+            logger.warning(
+                "TIMEOUT occurred, retransmitting request to all replicas")
+            self.retransmit_id = self.retransmit_id + 1
+            #print(replica_set)
+            client_request.set_retransmitted_id(self.retransmit_id)
+            send(('initiating_retransmit_request',client_request),to=replica_set.values())
+            logger.info("sent: 'initiating_retransmit_request' WITH client_id=%s, request_id=%s operation=%s TO all replicas", str(
+                client_id), str(request_id), str(operation))
+            self.retransmit_switch = 1
+
+            if await(self.retransmit_switch == 2):
+                logger.info("operation:%s completed done by the client:%s before timeout", str(
+                    operation), str(client_id))
+            elif timeout(self.client_timeout):
+                logger.error("retransmitted_request:provable case of misbehaviour client_id:%s has not received response for request_id:%s,retransmit_id:%s",str(client_id),str(request_id),str(retransmit_id))
+                output("retransmitted_request:error provable case of misbehaviour for client_id " +
+                       str(client_id) + " request_id " + str(request_id))
+                #waiting_for_new_configuration = 1
+                #await(waiting_for_new_configuration == 2)
+
+        #output(" operation is done \n")
+      
+    def run():
+        register_client_and_get_active_configuration_from_olympus()
 
         logger.info("Performing operations")
-        operations = getWorkLoad()
+        self.operations = getWorkLoad()
+        self.operation_count = len(operations)
+        self.operation_iter = get_operation()
         #print("***workload client_id="+str(client_id)+" operations "+str(operations) +" operations len: "+str(len(operations)))
         current_time = time.time()
-        print("before time "+str(current_time) +" len(operations) "+str(len(operations))+" client_id "+str(client_id))
-
-        for operation in operations:
-            logger.info("sent: 'perform_operation' with client_id=%s, request_id=%s TO head_replica", str(
-                client_id), str(request_id))
-
-            send(('parent_perform_operation', client_id,
-                  request_id, operation), to=parent_process)
-            self.parent_request_switch = 1
-            await(self.parent_request_switch == 2)
-
-            self.switch = 1
-            self.retransmit_switch = 1
-            client_request = ClientRequest(client_id,request_id,retransmit_id,operation,self.private_key,self)
-            send(('perform_operation',client_request,None, None, None),to=head_replica)
-            # send(('perform_operation', client_id, request_id,
-            #       operation, self, None, None, None, None, retransmit_id), to=head_replica)
-
-            logger.info("sent: 'parent_verify' to parent_process")
-            #print("client_timeout "+str(client_timeout))
-            if await(self.switch == 2):
-                logger.info("operation:%s completed done by the client:%s", str(
-                    operation), str(client_id))
-                #output(" got the iddd for client_id "+str(client_id)+" for request_id "+str(request_id) + " gs "+str(global_seq_id) )
-            elif timeout(self.client_timeout):
-                output("TIMEOUT occurred, retransmitting request to all replicas")
-                logger.warning(
-                    "TIMEOUT occurred, retransmitting request to all replicas")
-                self.retransmit_id = self.retransmit_id + 1
-                #print(replica_set)
-                client_request.set_retransmitted_id(self.retransmit_id)
-                send(('initiating_retransmit_request',client_request),to=replica_set.values())
-                # send(('initiating_retransmit_request', client_id, request_id,
-                #       operation, self, retransmit_id), to=replica_set.values())
-                logger.info("sent: 'initiating_retransmit_request' with client_id=%s, request_id=%s operation=%s TO all replicas", str(
-                    client_id), str(request_id), str(operation))
-                self.retransmit_switch = 1
-                if await(self.retransmit_switch == 2):
-                    logger.info("operation:%s completed done by the client:%s before timeout", str(
-                        operation), str(client_id))
-                elif timeout(self.client_timeout):
-                    logger.error("retransmitted_request:provable case of misbehaviour client_id:%s has not received response for request_id:%s,retransmit_id:%s",str(client_id),str(request_id),str(retransmit_id))
-                    output("retransmitted_request:error provable case of misbehaviour for client_id " +
-                           str(client_id) + " request_id " + str(request_id))
-                    waiting_for_new_configuration = 1
-                    await(waiting_for_new_configuration == 2)
-            self.request_id = self.request_id + 1
-            #output(" operation is done \n")
-        print("after "+str(time.time()))
+        await(self.received_active_config_at_client == 1)
+        handle_operation()
+        #print("before time "+str(current_time) +" len(operations) "+str(len(operations))+" client_id "+str(client_id)
+        #output(" operation is done \n")
+      
+        #print("after "+str(time.time()))
         #send(('print_order_proofs',),to=replica_set)
         await(some(received(('done',), from_=self)))
 
     def pseudorandom_workload_gen(seed, count):
-        logger.info("generating pseudorandom workload for client_id:%s with seed:%s and count:%s ",str(client_id),str(seed),str(count))
+        logger.info("generating pseudorandom workload for client_id:%s WITH seed:%s and count:%s ",str(client_id),str(seed),str(count))
         random.seed(seed)
         list_operations = ["put('sports','foot')",
                            "append('sport',' ball')",
@@ -395,35 +449,36 @@ def main():
     num_client = config.get('num_client')
     total_replica_count = 2 * T + 1
     config(channel=reliable, clock=Lamport, handling=all)
-    replica_set = new(Replica, num=total_replica_count)
+    #replica_set = new(Replica, num=total_replica_count)
     #replica_set = new(Replica, num=total_replica_count, at='ReplicaNode')
     #olympus = new(Olympus, num=1, at='OlympusNode')
     olympus = new(Olympus, num=1)
-    replica_id = 0
-    for replica in replica_set:
-        setup(replica, (replica_set, replica_id,config_file_name))
-        replica_id = replica_id + 1
+    # replica_id = 0
+    # for replica in replica_set:
+    #     setup(replica, (replica_set, replica_id,config_file_name))
+    #     replica_id = replica_id + 1
 
-    setup(olympus, (T, total_replica_count, replica_set))
+    setup(olympus, (T, total_replica_count, config_file_name))
     logger.info("Starting Olympus")
     start(olympus)
     logger.info("Olympus started")
     logger.info("Starting %s Replicas", str(total_replica_count))
-    start(replica_set)
-    logger.info("%s Replicas started", str(total_replica_count))
+    # start(replica_set)
+    # logger.info("%s Replicas started", str(total_replica_count))
 
-    parent_process = new(ParentProcess, num=1)
-    #parent_process = new(ParentProcess, num=1, at='ParentNode')
-    setup(parent_process, (total_replica_count,))
-    logger.info("Starting ParentProcess")
-    start(parent_process)
+    # parent_process = new(ParentProcess, num=1)
+    # #parent_process = new(ParentProcess, num=1, at='ParentNode')
+    # setup(parent_process, (total_replica_count,))
+    # logger.info("Starting ParentProcess")
+    # start(parent_process)
 
-    clients = new(Client, num=num_client)
+    clients = new(Client,num=num_client)
     client_id = 0
     for new_client in clients:
-        setup(new_client, (client_id, olympus,
-                           parent_process, T,config_file_name))
+        setup(new_client, (client_id, olympus,T,config_file_name))
         client_id = client_id + 1
     logger.info("Starting %s Clients", str(len(clients)))
     start(clients)
     logger.info("%s Clients started", str(len(clients)))
+
+

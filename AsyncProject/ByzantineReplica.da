@@ -16,6 +16,7 @@ import datetime
 import time
 import traceback
 import time
+import os
 
 #config_file_name = "stress10.txt"
 timestamp = datetime.datetime.fromtimestamp(
@@ -27,7 +28,7 @@ class Replica(process):
     # def decrypt_message(msg):
     def get_failure_workload():
         #output("my replica_id is "+str(replica_id))
-        workload = config.get('failures[0,' + str(replica_id) + ']')
+        workload = config.get('failures['+str(configuration_id)+',' + str(replica_id) + ']')
         if workload is None:
             return
 
@@ -71,8 +72,9 @@ class Replica(process):
 
             # print(failure)
 
-    def setup(replica_Set: set, replica_Id: int,config_file: string):
+    def setup(replica_Set: set, replica_Id: int,config_file: string,configuration_id:int):
         #self.replica_set_united = replica_Set
+        self.configuration_id = configuration_id
         self.Active = "Active"
         self.Immutable = "Immutable"
         self.client_public_keys = {}
@@ -110,6 +112,8 @@ class Replica(process):
         read_config()
         get_failure_workload()
         self.checkpointing_interval = get_check_pointing_interval("checkpt_interval")
+        if self.checkpointing_interval is None:
+            self.checkpointing_interval = -1
         #print(str(failure_triggers) + " for replica_id " + str(replica_id))
         self.logger = logging.getLogger("Replica " + str(replica_id))
         self.logger.setLevel(logging.INFO)
@@ -245,7 +249,7 @@ class Replica(process):
             client_id), str(replica_id))
         self.client_public_keys[client_id] = public_key
         self.client_forwarded_request_count[client_id] = 0
-        send(('client_registered_at_replica', client_id), to=olympus)
+        send(('client_registered_at_replica', client_id,replica_id), to=olympus)
         logger.info("sent: 'client_registered_at_replica'- client_id=%s,at replica:%s TO Olympus",
                     str(client_id), str(replica_id))
 
@@ -463,6 +467,14 @@ class Replica(process):
         return hash_of_running_state,signed_hash_of_running_state
 
 
+    def receive(msg=('terminate_replica',),from_=olympus):
+        print("process terminated replica_id"+str(replica_id))
+        os._exit(-1)
+        #replica_history = self.history
+        #order_proofs = replica_history.get_order_proofs()
+        #print("replica_id: "+str(replica_id)+" order_proofs: ",str(order_proofs))
+
+
     def receive(msg=('print_order_proofs',),from_=client):
         replica_history = self.history
         order_proofs = replica_history.get_order_proofs()
@@ -478,11 +490,16 @@ class Replica(process):
         retransmitted = client_request.get_retransmitted_status()
         retransmit_id = client_request.get_retransmit_id()
 
-        #print(":here2 "+str(client_id))
+        #print(":here2 "+str(client_id)+" request_id "+str(request_id)+" operation "+str(operation))
         client_public_key = client_public_keys[client_id]
         #print(":here3 from:"+str(valid_process))
         hash_of_client_request = client_request.get_hash_of_client_request()
         signed_hash_of_client_request = client_request.get_signed_hash_of_client_request()
+
+
+        logger.info("received: 'perform_operation' with retransmit_id=%s , client_id=%s, request_id=%s, operation=%s ,current_slot_number=%s",str(retransmit_id) ,str(
+            client_id), str(request_id), str(operation),str(current_slot_number))
+
 
         if next_slot_number is not None and (next_slot_number != current_slot_number or decode_hash_and_verify(hash_of_client_request,signed_hash_of_client_request,client_public_key) is False) :
             send(('reconfigure_request',replica_id), to=olympus)
@@ -490,13 +507,11 @@ class Replica(process):
                          str(client_id), str(request_id), str(replica_id))
             return
 
-        if self.replica_state == self.Immutable and replica_id == 0:
+        if self.replica_state == self.Immutable:
             print("replica is immutable,wont process requests anymore")
             return
 
 
-        logger.info("received: 'perform_operation' with retransmit_id=%s , client_id=%s, request_id=%s, operation=%s ,current_slot_number=%s",str(retransmit_id) ,str(
-            client_id), str(request_id), str(operation),str(current_slot_number))
         #testing retransmit case when the request completely failed and forwarded request is procecessed
         # if int(client_id) == 0 and int(request_id) == 1 and int(replica_id) == 0 and retransmitted is None:
         #     return
@@ -609,7 +624,7 @@ class Replica(process):
                     replica_id + 1), str(client_id), str(request_id), str(operation))
                 self.current_slot_number = self.current_slot_number + 1
 
-                if (current_slot_number) % checkpointing_interval == 0:
+                if self.current_slot_number % checkpointing_interval == 0:
                     #pass
                     #hash_of_running_state,signed_hash_of_running_state = get_check_point_proof()
                     check_point_proof = CheckPointProof(check_point_id,current_slot_number - checkpointing_interval, current_slot_number - 1)
@@ -811,10 +826,14 @@ class Replica(process):
 
 
     def receive(msg=('get_running_state',),from_=olympus):
-        logger.info("get_caughtup_message: to replica_id=%s", str(replica_id))  
+        logger.info("get_running_state: from replica_id=%s", str(replica_id))  
         running_state = caughtup_message.get_running_state() 
         send(('running_state_from_replica',replica_id,running_state),to = olympus)
 
+    def receive(msg=('save_running_state',running_state),from_=olympus):
+        logger.info("save_running_state: to replica_id=%s", str(replica_id))  
+        self.data_object = running_state 
+        
     def receive(msg=('perform_catchup_to_maximal_order_proof',catchup_message),from_=olympus):
         logger.info("perform_catchup_to_maximal_order_proof: to replica_id=%s", str(replica_id))   
         running_state = copy.deepcopy(self.data_object)     
@@ -849,7 +868,9 @@ class Replica(process):
         logger.info("received: 'initiating_retransmit_request' by replica_id=%s, with client_id=%s, request_id=%s, operation=%s", str(
             replica_id), str(client_id), str(request_id), str(operation))
         
-
+        if self.replica_state == self.Immutable:
+            print("replica is immutable,wont process requests anymore")
+            return
 
         if is_registered_client(client_id) is False:
             # error case
@@ -989,5 +1010,6 @@ class Replica(process):
         logger.info("sent: 'KeysFound' to self")
 
     def run():
+        #print("reincarnation "+str(replica_id))
         await(received(('KeysFound',), from_=self))
         await(received(('done',), from_=self))

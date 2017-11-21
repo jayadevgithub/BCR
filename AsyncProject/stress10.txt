@@ -20,6 +20,7 @@ client_timeout = 3000
 # timeout, in milliseconds, for head and non-head servers, respectively
 head_timeout = 3000
 nonhead_timeout = 3000
+checkpt_interval = 100
 
 # CLIENT WORKLOAD
 workload[0] = pseudorandom(190,10)
