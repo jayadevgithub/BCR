@@ -100,6 +100,7 @@ class CaughtUpMessage():
         self.last_served_request_for_a_client[client_id]=result_proof
 
     def get_last_result_statement_of_client_at_replica(self,client_id):
+        if len(self.last_served_request_for_a_client)
         return self.last_served_request_for_a_client[client_id]
 
     def get_hash_of_running_state(self):

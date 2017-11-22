@@ -149,7 +149,7 @@ class Replica(process):
         self.checkpointing_interval = get_check_pointing_interval("checkpt_interval")
         if self.checkpointing_interval is None:
             self.checkpointing_interval = -1
-        #print(" for replica_id " + str(replica_id)+" :-> \n"+str(failure_triggers) + "\n")
+        print(" for replica_id " + str(replica_id)+" :-> \n"+str(failure_triggers) + "\n")
         self.logger = logging.getLogger("Replica " + str(replica_id))
         self.logger.setLevel(logging.INFO)
         self.olympus = None  # todo send it in constructor
@@ -424,7 +424,7 @@ class Replica(process):
         operation_dict["value"] = None
 
         logger.warning("changing operation for client_id client_id:%s,request_id:%s,replica_id:%s,new operation:%s", str(client_id) ,str(request_id), str(replica_id),str(operation_dict))
-        client_request.set_operation(operation)
+        client_request.set_operation(operation_dict)
 
     def increment_slot_number_failure():
         
@@ -844,6 +844,9 @@ class Replica(process):
                 if self.pending_invalid_order_stmts_signatures > 0:
                     invalid_order_statement_signature_failure(client_id,request_id,result_shuttle)
 
+                if self.pending_change_operations > 0:
+                    change_operation_failure(client_request,client_id,request_id)
+
                 next_replica = get_next_replica()
                 send(('perform_operation', client_request,result, result_shuttle, current_slot_number), to=next_replica)
 
@@ -1177,6 +1180,8 @@ class Replica(process):
             caughtup_message.add_last_served_request_result_statement(client_id,result_statement)
 
         self.caughtup_message =caughtup_message
+
+        print(" replica_id "+str(replica_id)+" running_state "+str(data_object))
         send(('caughtup_message',replica_id,caughtup_message),to = olympus)
 
     #def receive(msg=('initiating_retransmit_request', client_id, request_id, operation, client_process, retransmit_id)):
