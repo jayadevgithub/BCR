@@ -1,0 +1,2 @@
+failure validation when calling perform_operation
+the replicas need to check if correct slot number is being sent

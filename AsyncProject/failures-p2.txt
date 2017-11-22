@@ -1,0 +1,32 @@
+required failure triggers are listed below, where c >= 0 and m >= 0, i.e., clients c and received messages m are numbered starting from 0.  this message numbering is done independently by each replica (using an auxiliary data structure) for each message type from each client.  the numbering is continuous (not reset) across configurations.
+
+
+done
+-----
+failure triggers for phases 2 and 3:   [2017-09-12: postponed some triggers to phase 3, and added two triggers related to checkpoints.]
+
+client_request(c, m): receipt of m'th request message directly from client c.  requests received directly from client c are numbered separately from requests of client c received via forwarding by other replicas.
+ 
+forwarded_request(c, m): receipt of m'th forwarded request message containing a request from client c.
+
+shuttle(c, m): receipt of m'th shuttle message for a request by client c.
+
+result_shuttle(c, m): receipt of m'th result-shuttle message for a request by client c.
+
+done
+-----
+
+required failures for phases 2 and 3: [2017-09-12: postponed some failures to phase 3, added drop_result_stmt, and removed omit_send() (use drop() on the receiver-side instead).]
+
+change_operation(): in the next outgoing shuttle message, this replica uses get('x') as the operation in its order statement and result statement, regardless of what the operation should be.
+
+change_result(): in the next outgoing result message (to a client) or result shuttle message, this replica uses the hash of 'OK', instead of the hash of the actual result, in its result statement.
+
+drop_result_stmt(): in the next outgoing result message (to a client) or result shuttle message, omit the head's result statement from the result proof.
+
+[2017-10-22 In case of change_result or drop_result_stmt failures at the tail, the tail sends the tampered result proofs to both the client and the previous replica.]
+
+
+
+failures[0,0] = client_request(2,1), change_operation()
+failures[1,2] = result_shuttle(0,1),drop_result_stmt(); shuttle(1,3),change_result()

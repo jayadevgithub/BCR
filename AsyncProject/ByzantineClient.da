@@ -118,7 +118,7 @@ class Client(process):
             replica_public_key = public_keys[replica_id]
             self.replica_public_keys[replica_id] = replica_public_key
         self.received_active_config_at_client = 1
-        print("replica_set "+str(replica_set))
+        #print("replica_set "+str(replica_set))
     def receive(msg=('client_registered_at_olympus',parent_process), from_=olympus):
         logger.info("received: 'client_registered_at_olympus' FROM Olympus")
         logger.info("client_id=%s is successfully registered", str(client_id))
@@ -304,8 +304,7 @@ class Client(process):
         await(self.received_active_config_at_client == 1)
         handle_operation()
         #print("before time "+str(current_time) +" len(operations) "+str(len(operations))+" client_id "+str(client_id)
-        #output(" operation is done \n")
-      
+        #todo time elapsed
         #print("after "+str(time.time()))
         #send(('print_order_proofs',),to=replica_set)
         await(some(received(('done',), from_=self)))
@@ -433,7 +432,7 @@ def get_config_info(config_file_name):
 
 
 def main():
-    config_file_name = 'config.txt'
+    config_file_name = 'simple_config.txt'
     logger = logging.getLogger("Main Module")
     logger.setLevel(logging.INFO)
     # logger.addHandler(handler)
@@ -449,28 +448,12 @@ def main():
     num_client = config.get('num_client')
     total_replica_count = 2 * T + 1
     config(channel=reliable, clock=Lamport, handling=all)
-    #replica_set = new(Replica, num=total_replica_count)
-    #replica_set = new(Replica, num=total_replica_count, at='ReplicaNode')
-    #olympus = new(Olympus, num=1, at='OlympusNode')
     olympus = new(Olympus, num=1)
-    # replica_id = 0
-    # for replica in replica_set:
-    #     setup(replica, (replica_set, replica_id,config_file_name))
-    #     replica_id = replica_id + 1
 
     setup(olympus, (T, total_replica_count, config_file_name))
     logger.info("Starting Olympus")
     start(olympus)
     logger.info("Olympus started")
-    logger.info("Starting %s Replicas", str(total_replica_count))
-    # start(replica_set)
-    # logger.info("%s Replicas started", str(total_replica_count))
-
-    # parent_process = new(ParentProcess, num=1)
-    # #parent_process = new(ParentProcess, num=1, at='ParentNode')
-    # setup(parent_process, (total_replica_count,))
-    # logger.info("Starting ParentProcess")
-    # start(parent_process)
 
     clients = new(Client,num=num_client)
     client_id = 0

@@ -1,0 +1,19 @@
+failure detected somewhere else
+count is incremented
+so in the next outgoing means
+
+after message is going out of this trigger this failure
+so this replica has to process this message properly
+
+
+for different triggers at same client_id,request_id if we have same failure after executing once we can set the count to 0 or execute multiple times?
+drop_checkpoint_stmts_failure
+
+
+todo
+ check_in_order_proof method
+ checkpointing issues
+
+
+ testcases
+ new_configuration(0),increment_slot()

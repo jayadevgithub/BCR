@@ -10,6 +10,15 @@ def get_hash(msg):
     dgst = HASHER(msg_in_bytes, encoder=nacl.encoding.HexEncoder)
     return dgst
 
+
+def get_tampered_signed_msg(signed_message):
+    signedlist = list(signed_message)
+    signedlist[0] = (signedlist[0] + 1) % 256
+    newsigned=bytes(signedlist)
+    invalid_signed = nacl.signing.SignedMessage._from_parts(signed_message._signature, signed_message._message, newsigned)
+    return invalid_signed
+
+
 def get_signed_hash(msg,private_key):
     HASHER = nacl.hash.sha256
     msg_in_bytes = str(msg).encode('utf-8')
@@ -74,37 +83,6 @@ class ResultCache():
     def get_result(self):
         return self.result
 
-class ResultShuttle():
-
-    def __init__(self):
-        self.result_proofs = {}
-        self.client_id = None
-        self.request_id = None
-        self.result = None
-
-    def add_result_proof_at_replica_id(self,replica_id,cached_result):
-        self.result_proofs[replica_id] = cached_result
-        if self.client_id is not None and self.request_id is not None:
-            print("replica_id"+str(replica_id)+"old_client_id "+str(self.client_id)+" old_request_id"+str(self.request_id))
-        self.client_id = cached_result.get_client_id()
-        self.request_id = cached_result.get_request_id()
-        self.result = cached_result.get_result()
-        print("replica_id"+str(replica_id)+"new_client_id "+str(self.client_id)+" new_request_id"+str(self.request_id))
-    
-    def get_result_proof_of_replica(self,replica_id):
-        return self.result_proofs[replica_id]
-
-    def get_replica_ids_from_shuttle(self):
-        return self.result_proofs.keys()
-
-    def get_client_id(self):
-        return self.client_id
-
-    def get_request_id(self):
-        return self.request_id
-
-    def get_result(self):
-        return self.result
 
 
 class CaughtUpMessage():
@@ -263,6 +241,10 @@ class CheckPointProof():
     def get_replicas_in_checkpoint(self):
         return self.checkpoint_of_replicas.keys()
 
+    def remove_checkpoint_proof_at_replica_id(self,replica_id):
+        del self.checkpoint_of_replicas[replica_id]
+
+
 class History():
 
     def __init__(self):
@@ -286,6 +268,10 @@ class History():
 
     def get_count_of_slots(self):
         return len(self.order_proof_for_each_slot)
+
+    def omit_last_entry_of_history(self):
+        del self.order_proof_for_each_slot[self.get_count_of_slots()]
+
 
 class CachedResult():
 
@@ -315,6 +301,68 @@ class WedgedStatement():
     def get_order_proof_at_slot(self,slot_id):
         return self.history.get_order_proof_at_slot(slot_id)
 
+
+
+class ResultShuttle():
+
+    def __init__(self):
+        self.result_proofs = {}
+        self.client_id = None
+        self.request_id = None
+        self.result = None
+
+    def add_result_proof_at_replica_id(self,replica_id,cached_result):
+        self.result_proofs[replica_id] = cached_result
+        if self.client_id is not None and self.request_id is not None:
+            print("replica_id"+str(replica_id)+"old_client_id "+str(self.client_id)+" old_request_id"+str(self.request_id))
+        self.client_id = cached_result.get_client_id()
+        self.request_id = cached_result.get_request_id()
+        self.result = cached_result.get_result()
+        print("replica_id"+str(replica_id)+"new_client_id "+str(self.client_id)+" new_request_id"+str(self.request_id))
+    
+    def get_result_proof_of_replica(self,replica_id):
+        return self.result_proofs[replica_id]
+
+    def get_replica_ids_from_shuttle(self):
+        return self.result_proofs.keys()
+
+    def get_client_id(self):
+        return self.client_id
+
+    def get_request_id(self):
+        return self.request_id
+
+    def get_result(self):
+        return self.result
+
+class ResultProof():
+    #Config_Id =None
+
+    def __init__(self, operation, replica_id, result, private_key):
+        # todo
+        self.operation = operation
+        self.replica_id = replica_id
+        self.result = result
+        self.result_hashed_value, self.result_signed_value = encode_hash(
+            result, private_key)
+        # print(self.result_hashed_value)
+        #print("replica_id"+str(replica_id)+" result "+str(result))
+        #print(self.result_signed_value)
+    def get_result_signed_value_from_result_proof(self):
+        return self.result_signed_value
+
+    def get_result_hashed_value_from_result_proof(self):
+        return self.result_hashed_value
+
+    def get_operation_from_result_proof(self):
+        return self.operation
+
+    def set_result_signed_value_in_result_proof(self,new_signed_value):
+        self.result_signed_value = new_signed_value
+
+    def set_result_hashed_value_in_result_proof(self,tampered_result_hash_msg):
+        self.result_hashed_value = tampered_result_hash_msg
+
 class OrderStatement():
 
     def __init__(self, slot, operation, replica_id, private_key,client_id,request_id):
@@ -327,6 +375,7 @@ class OrderStatement():
         self.replica_id = replica_id
         self.operation_requested_by = client_id
         self.request_id = request_id
+
     def get_order_statement_as_string(self):
         concatenated_msg = str(self.slot) + str(self.operation)
         # HASHER = nacl.hash.sha256
@@ -353,27 +402,54 @@ class OrderStatement():
     def get_request_id_sent_by_client(self):
         return self.request_id
 
-class ResultProof():
-    #Config_Id =None
+    def set_signed_hashed_value_in_order_statement(self,tampered_signed_hash_msg):
+        self.signed_hash = tampered_signed_hash_msg
 
-    def __init__(self, operation, replica_id, result, private_key):
-        # todo
-        self.operation = operation
-        self.replica_id = replica_id
-        self.result = result
-        self.result_hashed_value, self.result_signed_value = encode_hash(
-            result, private_key)
-        # print(self.result_hashed_value)
-        #print("replica_id"+str(replica_id)+" result "+str(result))
-        #print(self.result_signed_value)
-    def get_result_signed_value_from_result_proof(self):
-        return self.result_signed_value
+class Shuttle():
 
-    def get_result_hashed_value_from_result_proof(self):
-        return self.result_hashed_value
+    def __init__(self, slot, operation=None):
+        self.order_proof = OrderProof(slot, operation, None)
+        self.result_proofs = {}
 
-    def get_operation_from_result_proof(self):
-        return self.operation
+    def add_order_statement_to_order_proof_in_shuttle(self, replica_id, order_statement):
+        #print("adding order order_statement")
+        new_order_statement = copy.deepcopy(order_statement)
+        self.order_proof.add_order_statment(replica_id,new_order_statement)
+        #print("order_statements length "+str(len(self.order_proof.order_statements)))
+
+    def add_result_proof_to_shuttle(self, replica_id,result_proof):
+        #new_result_proof = copy.copy(result_proof)
+        self.result_proofs[replica_id] = result_proof
+
+    def get_result_proofs_from_shuttle(self):
+        return self.result_proofs
+
+    def get_replica_ids_from_shuttle(self):
+        return self.result_proofs.keys()
+
+    def get_result_proof_of_replica(self,replica_id):
+        return self.result_proofs[replica_id]
+
+    def get_clone_of_order_proof_from_shuttle(self):
+
+        new_order_proof = copy.deepcopy(self.order_proof)
+        #print("new_order_proof "+str(new_order_proof))
+        #print("old_order_proof "+str(self.order_proof))
+        #print("old_order_proof "+str(self.order_proof))
+        return new_order_proof
+
+    def get_order_proof_from_shuttle(self):
+        return self.order_proof
+
+    def get_count_of_result_proofs_in_shuttle(self):
+        return len(self.result_proofs)
+
+    def drop_result_proof_from_shuttle(self,replica_id):
+        if len(self.result_proofs) > 0:
+            del self.result_proofs[replica_id]
+        else:
+            #logger.error("result proofs is empty")
+            print("error_result_proof_method: result proofs is empty")
 
 
 class OrderProof():
@@ -410,48 +486,4 @@ class OrderProof():
 
 
 
-class Shuttle():
 
-    def __init__(self, slot, operation=None):
-        self.order_proof = OrderProof(slot, operation, None)
-        self.result_proofs = {}
-
-    def add_order_statement_to_order_proof_in_shuttle(self, replica_id, order_statement):
-        #print("adding order order_statement")
-        new_order_statement = copy.deepcopy(order_statement)
-        self.order_proof.add_order_statment(replica_id,new_order_statement)
-        #print("order_statements length "+str(len(self.order_proof.order_statements)))
-
-    def add_result_proof_to_shuttle(self, replica_id,result_proof):
-        #new_result_proof = copy.copy(result_proof)
-        self.result_proofs[replica_id] = result_proof
-
-    def get_result_proofs_from_shuttle(self):
-        return self.result_proofs
-
-    def get_replica_ids_from_shuttle(self):
-        return self.result_proofs.keys()
-
-    def get_result_proof_of_replica(self,replica_id):
-        return self.result_proofs[replica_id]
-
-    def get_order_proof_from_shuttle(self):
-
-        new_order_proof = copy.deepcopy(self.order_proof)
-        #print("new_order_proof "+str(new_order_proof))
-        #print("old_order_proof "+str(self.order_proof))
-        #print("old_order_proof "+str(self.order_proof))
-        return new_order_proof
-
-    def get_order_proof_from_shuttle(self):
-        return self.order_proof
-
-    def get_count_of_result_proofs_in_shuttle(self):
-        return len(self.result_proofs)
-
-    def drop_result_proof_from_shuttle(self,index):
-        if len(self.result_proofs) > 0:
-            del self.result_proofs[index]
-        else:
-            #logger.error("result proofs is empty")
-            print("error_result_proof_method: result proofs is empty")

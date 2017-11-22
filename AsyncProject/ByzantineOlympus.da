@@ -73,7 +73,7 @@ class Olympus(process):
         #replica_set = new(Replica, num=total_replica_count, at='ReplicaNode')
         replica_id = 0
         for replica in replica_list:
-            setup(replica, (replica_list, replica_id,config_file_name,configuration_id))
+            setup(replica, (T,replica_list, replica_id,config_file_name,configuration_id))
             self.replica_set[replica_id] = replica
             if replica_id == 0:
                 self.head_replica = replica
@@ -100,8 +100,8 @@ class Olympus(process):
 
     def initialize_replicas_with_running_state(running_state):
         for replica_id in range(0, 2 * T + 1):
-            send(('save_running_state', running_state), to=replica_set[replica_id])
-            logger.info("sent: 'running_state' TO replica_id=%s", str(replica_id))
+            send(('new_configuration', running_state), to=replica_set[replica_id])
+            logger.info("sent: new_configuration. with 'running_state' TO replica_id=%s", str(replica_id))
 
     def register_clients_at_replica():
         for client_id in client_info:
@@ -129,7 +129,6 @@ class Olympus(process):
         
         self.count_of_registrations[client_id] = self.count_of_registrations[client_id] + 1
         #print("len(replica_set) "+str(len(replica_set)) +" self.count_of_registrations[client_id] "+str(self.count_of_registrations[client_id]))
-
 
     def get_maximal_order_proof_replica_index(faulty_replica_indices):
         max_slots = -1
@@ -313,7 +312,8 @@ class Olympus(process):
 
         logger.info("wedged_request: sending wedged requests to all the replicas")
         self.count_of_wedged_statements = 0
-        send(('wedged_request',), to=replica_set.values())
+        wedge_request_id = 0
+        send(('wedged_request',wedge_request_id), to=replica_set.values())
         # we may need to change the condition if crash failure is encountered
         await(self.count_of_wedged_statements == len(replica_set))
 
@@ -348,6 +348,7 @@ class Olympus(process):
 
         print("Quorum of replicas found "+str(catchup_messages))
 
+        catchup_msg_identifier = 0
         for replica_id in valid_quorum_of_replicas:
             #replica_id = valid_quorum_of_replicas[i]
             if catchup_messages is not None:
@@ -356,7 +357,7 @@ class Olympus(process):
                 print("catchup_message "+str(catchup_messages))
             replica_to = replica_set[replica_id]
             print("sending perform_catchup_to_maximal_order_proof")
-            send(('perform_catchup_to_maximal_order_proof',catchup_message),to = replica_to)
+            send(('perform_catchup_to_maximal_order_proof',catchup_message,catchup_msg_identifier),to = replica_to)
 
         await(self.count_of_caughtup_messages == len(valid_quorum_of_replicas))
 
@@ -367,11 +368,12 @@ class Olympus(process):
             quorum_of_replicas = copy.deepcopy(valid_quorum_of_replicas)
 
             valid_running_state = None
+            running_state_id = 0
             while len(quorum_of_replicas) > 0:
                 random_replica_index = randint(0,len(quorum_of_replicas)-1)
                 replica_id = quorum_of_replicas[random_replica_index]
                 
-                send(('get_running_state',),to = replica_set[replica_id])
+                send(('get_running_state',running_state_id),to = replica_set[replica_id])
                 self.has_received_running_state_from_random_replica = 0
                 await(self.has_received_running_state_from_random_replica == 1)
                 caughtup_message = caughtup_messages_of_replicas[replica_id]
@@ -382,6 +384,7 @@ class Olympus(process):
                 if compare_signed_messages(replica_signed_hash_of_running_state,consistent_signed_hash_of_running_state) is True:
                     valid_running_state = replica_running_state
                     break
+                running_state_id = running_state_id + 1
             if valid_running_state is None:
                 print("running_states are not consistent,need to do abort the system")
             else:
