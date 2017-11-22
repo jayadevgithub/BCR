@@ -131,6 +131,7 @@ class Replica(process):
         self.pending_invalid_order_stmts_signatures = 0
         self.pending_invalid_result_signatures = 0
         self.pending_drop_checkpoint_stmts = 0
+        self.sleep_time_periods  = []
         self.send_acks_to_replicas = {}
         self.retransmit_acknowledged = 0
         self.current_checkpoint_proof = None
@@ -432,8 +433,10 @@ class Replica(process):
             self.current_slot_number = self.current_slot_number + 1
             self.pending_increment_slot_stmts = self.pending_increment_slot_stmts - 1
 
-    def sleep_failure(sleep_period):
+    def sleep_failure():
         while self.pending_sleep_statements > 0:
+            sleep_period = self.sleep_time_periods[0]
+            del self.sleep_time_periods[0]
             print("sleep_failure: replica_id: "+str(replica_id)+"sleeping for a period of "+str(sleep_period)+" milli seconds ")
             logger.warning(" sleep_failure: replica_id:%s sleeping for a period of %s milli seconds ",str(replica_id),str(sleep_period))
             self.pending_sleep_statements = self.pending_sleep_statements - 1
@@ -510,7 +513,24 @@ class Replica(process):
             if wedge_request_failure is not None:
                 logger.info("Trigger Exists:  in  replica=%s, trigger_name=wedged_request with wedge_request_id=%s, failure_to_be_executed=%s", str(
                     replica_id), str(wedge_request_id), str(wedge_request_failure["failure_name"]))
-                update_failure_count(str(wedge_request_failure["failure_name"]))
+                update_failure_count(str(running_state_failure["failure_name"],running_state_failure["failure_param"]))
+
+                if self.pending_extra_op_stmts > 0:
+                    extra_op_failure()
+
+                if self.is_head_replica is True and self.pending_increment_slot_stmts > 0:
+                    increment_slot_number_failure()
+
+                if self.pending_drop_stmts > 0:
+                    self.pending_drop_stmts = 0
+                    return
+
+                if self.pending_crash_stmts > 0:
+                    crash_failure()
+
+                if self.pending_sleep_statements > 0:
+                    sleep_failure()
+
 
         logger.info("wedged_request: received wedged request FROM olympus changing the replica status to Immutable")
         self.replica_state = self.Immutable#changing the replica status to immutable
@@ -546,23 +566,32 @@ class Replica(process):
             if completed_checkpoint_failure is not None:
                 logger.info("Trigger Exists: in  replica=%s, trigger_name=checkpoint with checkpoint_id=%s, failure_to_be_executed=%s", str(
                     replica_id), str(checkpoint_identifier), str(completed_checkpoint_failure["failure_name"]))
-                update_failure_count(str(completed_checkpoint_failure["failure_name"]))
+                update_failure_count(str(running_state_failure["failure_name"],running_state_failure["failure_param"]))
 
-        if self.pending_drop_checkpoint_stmts > 0:
-            drop_checkpoint_stmts_failure(completed_checkpoint_proof,checkpoint_identifier)
+                if self.pending_extra_op_stmts > 0:
+                    extra_op_failure()
 
+                if self.is_head_replica is True and self.pending_increment_slot_stmts > 0:
+                    increment_slot_number_failure()
 
-        if self.pending_extra_op_stmts > 0:
-            extra_op_failure()
+                if self.pending_drop_stmts > 0:
+                    self.pending_drop_stmts = 0
+                    return
 
+                if self.pending_crash_stmts > 0:
+                    crash_failure()
 
-        if self.is_head_replica is True and self.pending_increment_slot_stmts > 0:
-            increment_slot_number_failure()
+                if self.pending_sleep_statements > 0:
+                    sleep_failure()
+
 
         replica_history = self.history
         #order_proofs = replica_history.get_order_proofs()
         for slot_id in range(checkpointing_interval-1,-1,-1):
             replica_history.remove_order_proof_at_slot(slot_id)
+
+        if self.pending_drop_checkpoint_stmts > 0:
+            drop_checkpoint_stmts_failure(completed_checkpoint_proof,checkpoint_identifier)
 
         #print("replica_history.get_order_proofs()" +str(replica_history.get_order_proofs()) +" at replica_id "+str(replica_id))
         if self.is_head_replica is False:
@@ -596,14 +625,23 @@ class Replica(process):
             if checkpoint_failure is not None:
                 logger.info("Trigger Exists: in  replica=%s, trigger_name=checkpoint with checkpoint_id=%s, failure_to_be_executed=%s", str(
                     replica_id), str(checkpoint_identifier), str(checkpoint_failure["failure_name"]))
-                update_failure_count(str(checkpoint_failure["failure_name"]))
+                update_failure_count(str(running_state_failure["failure_name"],running_state_failure["failure_param"]))
 
+                if self.pending_extra_op_stmts > 0:
+                    extra_op_failure()
 
-        if self.pending_extra_op_stmts > 0:
-            extra_op_failure()
+                if self.is_head_replica is True and self.pending_increment_slot_stmts > 0:
+                    increment_slot_number_failure()
 
-        if self.is_head_replica is True and self.pending_increment_slot_stmts > 0:
-            increment_slot_number_failure()
+                if self.pending_drop_stmts > 0:
+                    self.pending_drop_stmts = 0
+                    return
+
+                if self.pending_crash_stmts > 0:
+                    crash_failure()
+
+                if self.pending_sleep_statements > 0:
+                    sleep_failure()
 
 
         hash_of_running_state,signed_hash_of_running_state = get_check_point_proof()
@@ -706,13 +744,23 @@ class Replica(process):
                     if pending_failure is not None:
                         logger.info("Trigger Exists:  in  replica=%s, trigger_name=forwarded_request with client_id=%s, request_id=%s, failure_to_be_executed=%s", str(
                             replica_id), str(client_id), str(request_id), str(pending_failure["failure_name"]))
-                        update_failure_count(str(pending_failure["failure_name"]))
+                        update_failure_count(str(running_state_failure["failure_name"],running_state_failure["failure_param"]))
                 
-                if self.pending_extra_op_stmts > 0:
-                    extra_op_failure()
+                        if self.pending_extra_op_stmts > 0:
+                            extra_op_failure()
 
-                if self.is_head_replica is True and self.pending_increment_slot_stmts > 0:
-                    increment_slot_number_failure()
+                        if self.is_head_replica is True and self.pending_increment_slot_stmts > 0:
+                            increment_slot_number_failure()
+
+                        if self.pending_drop_stmts > 0:
+                            self.pending_drop_stmts = 0
+                            return
+
+                        if self.pending_crash_stmts > 0:
+                            crash_failure()
+
+                        if self.pending_sleep_statements > 0:
+                            sleep_failure()
 
             cache_key = '00000'+str(client_id)+'11111' + str(request_id)
             
@@ -730,8 +778,23 @@ class Replica(process):
                     if client_request_failure is not None:
                         logger.info("Trigger Exists:  in  replica=%s, trigger_name=client_request with client_id=%s, request_id=%s, failure_to_be_executed=%s", str(
                             replica_id), str(client_id), str(request_id), str(client_request_failure["failure_name"]))
-                        update_failure_count(
-                            str(client_request_failure["failure_name"]))
+                        update_failure_count(str(running_state_failure["failure_name"],running_state_failure["failure_param"]))
+
+                        if self.pending_extra_op_stmts > 0:
+                            extra_op_failure()
+
+                        if self.is_head_replica is True and self.pending_increment_slot_stmts > 0:
+                            increment_slot_number_failure()
+
+                        if self.pending_drop_stmts > 0:
+                            self.pending_drop_stmts = 0
+                            return
+
+                        if self.pending_crash_stmts > 0:
+                            crash_failure()
+
+                        if self.pending_sleep_statements > 0:
+                            sleep_failure()
 
                 shuttle_failures = get_pending_failures_if_exists(
                     client_id, request_id + retransmit_id, "shuttle")
@@ -739,13 +802,23 @@ class Replica(process):
                     if shuttle_failure is not None:
                         logger.info("Trigger Exists:  in  replica=%s, trigger_name=shuttle with client_id=%s, request_id=%s, failure_to_be_executed=%s", str(
                             replica_id), str(client_id), str(request_id), str(shuttle_failure["failure_name"]))
-                        update_failure_count(str(shuttle_failure["failure_name"]))
+                        update_failure_count(str(running_state_failure["failure_name"],running_state_failure["failure_param"]))
 
-                if self.pending_extra_op_stmts > 0:
-                    extra_op_failure()
+                        if self.pending_extra_op_stmts > 0:
+                            extra_op_failure()
 
-                if self.is_head_replica is True and self.pending_increment_slot_stmts > 0:
-                    increment_slot_number_failure()
+                        if self.is_head_replica is True and self.pending_increment_slot_stmts > 0:
+                            increment_slot_number_failure()
+
+                        if self.pending_drop_stmts > 0:
+                            self.pending_drop_stmts = 0
+                            return
+
+                        if self.pending_crash_stmts > 0:
+                            crash_failure()
+
+                        if self.pending_sleep_statements > 0:
+                            sleep_failure()
 
                 result_cache[cache_key] = True
                 result = process_operation(operation)
@@ -801,8 +874,23 @@ class Replica(process):
                     if client_request_failure is not None:
                         logger.info("Trigger Exists:  in  replica=%s, trigger_name=client_request with client_id=%s, request_id=%s, failure_to_be_executed=%s", str(
                             replica_id), str(client_id), str(request_id), str(client_request_failure["failure_name"]))
-                        update_failure_count(
-                            str(client_request_failure["failure_name"]))
+                        update_failure_count(str(running_state_failure["failure_name"],running_state_failure["failure_param"]))
+
+                        if self.pending_extra_op_stmts > 0:
+                            extra_op_failure()
+
+                        if self.is_head_replica is True and self.pending_increment_slot_stmts > 0:
+                            increment_slot_number_failure()
+
+                        if self.pending_drop_stmts > 0:
+                            self.pending_drop_stmts = 0
+                            return
+
+                        if self.pending_crash_stmts > 0:
+                            crash_failure()
+
+                        if self.pending_sleep_statements > 0:
+                            sleep_failure()
 
                 shuttle_failures = get_pending_failures_if_exists(
                     client_id, request_id + retransmit_id, "shuttle")
@@ -813,10 +901,23 @@ class Replica(process):
                     if shuttle_failure is not None:
                         logger.info("Trigger Exists:  in  replica=%s, trigger_name=shuttle with client_id=%s, request_id=%s, failure_to_be_executed=%s", str(
                             replica_id), str(client_id), str(request_id), str(shuttle_failure["failure_name"]))
-                        update_failure_count(str(shuttle_failure["failure_name"]))
+                        update_failure_count(str(running_state_failure["failure_name"],running_state_failure["failure_param"]))
 
-                if self.pending_extra_op_stmts > 0:
-                    extra_op_failure()
+                        if self.pending_extra_op_stmts > 0:
+                            extra_op_failure()
+
+                        if self.is_head_replica is True and self.pending_increment_slot_stmts > 0:
+                            increment_slot_number_failure()
+
+                        if self.pending_drop_stmts > 0:
+                            self.pending_drop_stmts = 0
+                            return
+
+                        if self.pending_crash_stmts > 0:
+                            crash_failure()
+
+                        if self.pending_sleep_statements > 0:
+                            sleep_failure()
 
                 result = process_operation(operation)
                 #order_proof = result_shuttle.get_order_proof_from_shuttle()
@@ -921,7 +1022,7 @@ class Replica(process):
         #print("returning triggers")
         return triggers_to_be_executed
 
-    def update_failure_count(failure_name):
+    def update_failure_count(failure_name,failure_param):
         if failure_name == "change_operation":
             self.pending_change_operations = self.pending_change_operations + 1
         elif failure_name == "change_result":
@@ -934,6 +1035,7 @@ class Replica(process):
             self.pending_truncate_history_statements = self.pending_truncate_history_statements + 1
         elif failure_name == "sleep":   
             self.pending_sleep_statements = self.pending_sleep_statements + 1
+            self.sleep_time_periods.append(failure_param) 
         elif failure_name == "drop":
             self.pending_drop_stmts = self.pending_drop_stmts + 1
         elif failure_name == "increment_slot":            
@@ -993,13 +1095,24 @@ class Replica(process):
             if running_state_failure is not None:
                 logger.info("Trigger Exists: in  replica=%s, trigger_name=checkpoint with running_state_id=%s, failure_to_be_executed=%s", str(
                     replica_id), str(running_state_id), str(running_state_failure["failure_name"]))
-                update_failure_count(str(running_state_failure["failure_name"]))
+                update_failure_count(str(running_state_failure["failure_name"],running_state_failure["failure_param"]))
 
-        if self.pending_extra_op_stmts > 0:
-            extra_op_failure()
+                if self.pending_extra_op_stmts > 0:
+                    extra_op_failure()
 
-        if self.is_head_replica is True and self.pending_increment_slot_stmts > 0:
-            increment_slot_number_failure()
+                if self.is_head_replica is True and self.pending_increment_slot_stmts > 0:
+                    increment_slot_number_failure()
+
+                if self.pending_drop_stmts > 0:
+                    self.pending_drop_stmts = 0
+                    return
+
+                if self.pending_crash_stmts > 0:
+                    crash_failure()
+
+                if self.pending_sleep_statements > 0:
+                    sleep_failure()
+
 
         running_state = caughtup_message.get_running_state() 
         send(('running_state_from_replica',replica_id,running_state),to = olympus)
@@ -1023,7 +1136,23 @@ class Replica(process):
             if catchup_msg_failure is not None:
                 logger.info("Trigger Exists: in  replica=%s, trigger_name=checkpoint with catchup_msg_identifier=%s, failure_to_be_executed=%s", str(
                     replica_id), str(catchup_msg_identifier), str(catchup_msg_failure["failure_name"]))
-                update_failure_count(str(catchup_msg_failure["failure_name"]))
+                update_failure_count(str(running_state_failure["failure_name"],running_state_failure["failure_param"]))
+
+                if self.pending_extra_op_stmts > 0:
+                    extra_op_failure()
+
+                if self.is_head_replica is True and self.pending_increment_slot_stmts > 0:
+                    increment_slot_number_failure()
+
+                if self.pending_drop_stmts > 0:
+                    self.pending_drop_stmts = 0
+                    return
+
+                if self.pending_crash_stmts > 0:
+                    crash_failure()
+
+                if self.pending_sleep_statements > 0:
+                    sleep_failure()
 
         if self.pending_extra_op_stmts > 0:
             extra_op_failure()
@@ -1183,13 +1312,23 @@ class Replica(process):
             if result_shuttle_failure is not None:
                 logger.info("Trigger Exists:  in  replica=%s, trigger_name=client_request with client_id=%s, request_id=%s, failure_to_be_executed=%s", str(
                     replica_id), str(client_id), str(request_id), str(result_shuttle_failure["failure_name"]))
-                update_failure_count(str(result_shuttle_failure["failure_name"]))
+                update_failure_count(str(running_state_failure["failure_name"],running_state_failure["failure_param"]))
 
-        if self.pending_extra_op_stmts > 0:
-            extra_op_failure()
+                if self.pending_extra_op_stmts > 0:
+                    extra_op_failure()
 
-        if self.is_head_replica is True and self.pending_increment_slot_stmts > 0:
-            increment_slot_number_failure()
+                if self.is_head_replica is True and self.pending_increment_slot_stmts > 0:
+                    increment_slot_number_failure()
+
+                if self.pending_drop_stmts > 0:
+                    self.pending_drop_stmts = 0
+                    return
+
+                if self.pending_crash_stmts > 0:
+                    crash_failure()
+
+                if self.pending_sleep_statements > 0:
+                    sleep_failure()
 
         if self.pending_change_results > 0 or self.pending_change_result_failure_at_tail_replica is True:
             self.pending_change_result_failure_at_tail_replica = False
