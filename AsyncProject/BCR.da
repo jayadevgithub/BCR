@@ -513,7 +513,7 @@ class Replica(process):
             if wedge_request_failure is not None:
                 logger.info("Trigger Exists:  in  replica=%s, trigger_name=wedged_request with wedge_request_id=%s, failure_to_be_executed=%s", str(
                     replica_id), str(wedge_request_id), str(wedge_request_failure["failure_name"]))
-                update_failure_count(str(running_state_failure["failure_name"],running_state_failure["failure_param"]))
+                update_failure_count(str(wedge_request_failure["failure_name"]),wedge_request_failure["failure_param"])
 
                 if self.pending_extra_op_stmts > 0:
                     extra_op_failure()
@@ -566,7 +566,7 @@ class Replica(process):
             if completed_checkpoint_failure is not None:
                 logger.info("Trigger Exists: in  replica=%s, trigger_name=checkpoint with checkpoint_id=%s, failure_to_be_executed=%s", str(
                     replica_id), str(checkpoint_identifier), str(completed_checkpoint_failure["failure_name"]))
-                update_failure_count(str(running_state_failure["failure_name"],running_state_failure["failure_param"]))
+                update_failure_count(str(completed_checkpoint_failure["failure_name"]),completed_checkpoint_failure["failure_param"])
 
                 if self.pending_extra_op_stmts > 0:
                     extra_op_failure()
@@ -625,7 +625,7 @@ class Replica(process):
             if checkpoint_failure is not None:
                 logger.info("Trigger Exists: in  replica=%s, trigger_name=checkpoint with checkpoint_id=%s, failure_to_be_executed=%s", str(
                     replica_id), str(checkpoint_identifier), str(checkpoint_failure["failure_name"]))
-                update_failure_count(str(running_state_failure["failure_name"],running_state_failure["failure_param"]))
+                update_failure_count(str(checkpoint_failure["failure_name"]),checkpoint_failure["failure_param"])
 
                 if self.pending_extra_op_stmts > 0:
                     extra_op_failure()
@@ -744,7 +744,7 @@ class Replica(process):
                     if pending_failure is not None:
                         logger.info("Trigger Exists:  in  replica=%s, trigger_name=forwarded_request with client_id=%s, request_id=%s, failure_to_be_executed=%s", str(
                             replica_id), str(client_id), str(request_id), str(pending_failure["failure_name"]))
-                        update_failure_count(str(running_state_failure["failure_name"],running_state_failure["failure_param"]))
+                        update_failure_count(str(pending_failure["failure_name"]),pending_failure["failure_param"])
                 
                         if self.pending_extra_op_stmts > 0:
                             extra_op_failure()
@@ -778,7 +778,7 @@ class Replica(process):
                     if client_request_failure is not None:
                         logger.info("Trigger Exists:  in  replica=%s, trigger_name=client_request with client_id=%s, request_id=%s, failure_to_be_executed=%s", str(
                             replica_id), str(client_id), str(request_id), str(client_request_failure["failure_name"]))
-                        update_failure_count(str(running_state_failure["failure_name"],running_state_failure["failure_param"]))
+                        update_failure_count(str(client_request_failure["failure_name"]),client_request_failure["failure_param"])
 
                         if self.pending_extra_op_stmts > 0:
                             extra_op_failure()
@@ -802,7 +802,7 @@ class Replica(process):
                     if shuttle_failure is not None:
                         logger.info("Trigger Exists:  in  replica=%s, trigger_name=shuttle with client_id=%s, request_id=%s, failure_to_be_executed=%s", str(
                             replica_id), str(client_id), str(request_id), str(shuttle_failure["failure_name"]))
-                        update_failure_count(str(running_state_failure["failure_name"],running_state_failure["failure_param"]))
+                        update_failure_count(str(shuttle_failure["failure_name"]),shuttle_failure["failure_param"])
 
                         if self.pending_extra_op_stmts > 0:
                             extra_op_failure()
@@ -874,7 +874,7 @@ class Replica(process):
                     if client_request_failure is not None:
                         logger.info("Trigger Exists:  in  replica=%s, trigger_name=client_request with client_id=%s, request_id=%s, failure_to_be_executed=%s", str(
                             replica_id), str(client_id), str(request_id), str(client_request_failure["failure_name"]))
-                        update_failure_count(str(running_state_failure["failure_name"],running_state_failure["failure_param"]))
+                        update_failure_count(str(client_request_failure["failure_name"]),client_request_failure["failure_param"])
 
                         if self.pending_extra_op_stmts > 0:
                             extra_op_failure()
@@ -901,7 +901,7 @@ class Replica(process):
                     if shuttle_failure is not None:
                         logger.info("Trigger Exists:  in  replica=%s, trigger_name=shuttle with client_id=%s, request_id=%s, failure_to_be_executed=%s", str(
                             replica_id), str(client_id), str(request_id), str(shuttle_failure["failure_name"]))
-                        update_failure_count(str(running_state_failure["failure_name"],running_state_failure["failure_param"]))
+                        update_failure_count(str(shuttle_failure["failure_name"]),shuttle_failure["failure_param"])
 
                         if self.pending_extra_op_stmts > 0:
                             extra_op_failure()
@@ -1095,7 +1095,7 @@ class Replica(process):
             if running_state_failure is not None:
                 logger.info("Trigger Exists: in  replica=%s, trigger_name=checkpoint with running_state_id=%s, failure_to_be_executed=%s", str(
                     replica_id), str(running_state_id), str(running_state_failure["failure_name"]))
-                update_failure_count(str(running_state_failure["failure_name"],running_state_failure["failure_param"]))
+                update_failure_count(str(running_state_failure["failure_name"]),running_state_failure["failure_param"])
 
                 if self.pending_extra_op_stmts > 0:
                     extra_op_failure()
@@ -1136,7 +1136,7 @@ class Replica(process):
             if catchup_msg_failure is not None:
                 logger.info("Trigger Exists: in  replica=%s, trigger_name=checkpoint with catchup_msg_identifier=%s, failure_to_be_executed=%s", str(
                     replica_id), str(catchup_msg_identifier), str(catchup_msg_failure["failure_name"]))
-                update_failure_count(str(running_state_failure["failure_name"],running_state_failure["failure_param"]))
+                update_failure_count(str(catchup_msg_failure["failure_name"]),catchup_msg_failure["failure_param"])
 
                 if self.pending_extra_op_stmts > 0:
                     extra_op_failure()
@@ -1312,7 +1312,7 @@ class Replica(process):
             if result_shuttle_failure is not None:
                 logger.info("Trigger Exists:  in  replica=%s, trigger_name=client_request with client_id=%s, request_id=%s, failure_to_be_executed=%s", str(
                     replica_id), str(client_id), str(request_id), str(result_shuttle_failure["failure_name"]))
-                update_failure_count(str(running_state_failure["failure_name"],running_state_failure["failure_param"]))
+                update_failure_count(str(result_shuttle_failure["failure_name"]),result_shuttle_failure["failure_param"])
 
                 if self.pending_extra_op_stmts > 0:
                     extra_op_failure()
