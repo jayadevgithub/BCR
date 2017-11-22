@@ -18,6 +18,8 @@ class ParentProcess(process):
         self.data_object = {}
         self.global_result_of_operations = {}
         self.global_seq_id = 0
+        self.client_request_map = {}
+
 
     def receive(msg=('get_result_from_parent_process', globalseqid), from_=client):
         logger.info(
@@ -25,19 +27,23 @@ class ParentProcess(process):
         result = self.global_result_of_operations[str(globalseqid)]
         logger.info("presult=%s", str(result))
         send(('parent_sent_result', result), to=client)
-        logger.info(
-            "sent: 'parent_sent_result' TO client, with result=%s", str(result))
+        logger.info("sent: 'parent_sent_result' TO client, with result=%s", str(result))
 
     def receive(msg=('parent_perform_operation', client_id, request_id, operation), from_=client):
-        logger.info(
-            "received: 'parent_perform_operation' FROM client=%s, operation=%s",str(client_id), str(operation))
-        result = process_operation(operation)
-        global_result_of_operations[str(global_seq_id)] = result
-        self.global_seq_id += 1
-        send(('parent_performed_operation', global_seq_id - 1), to=client)
-        logger.info("sent: 'parent_performed_operation to client_id:%s', operation=%s, result=%s", str(client_id),str(
-            operation), str(result))
-        #logger.info("global result=%s", str(global_result_of_operations))
+        cache_key = '00000'+str(client_id)+'11111' + str(request_id)
+        if cache_key not in client_request_map:
+            logger.info("received: 'parent_perform_operation' FROM client=%s, operation=%s",str(client_id), str(operation))
+            result = process_operation(operation)
+            global_result_of_operations[str(global_seq_id)] = result
+            self.global_seq_id += 1
+            send(('parent_performed_operation', global_seq_id - 1), to=client)
+            logger.info("sent: 'parent_performed_operation to client_id:%s', operation=%s, result=%s", str(client_id),str(
+                operation), str(result))
+            #logger.info("global result=%s", str(global_result_of_operations))
+            client_request_map[cache_key] = True
+        else:
+            logger.info("received: duplicate 'parent_perform_operation' FROM client=%s, operation=%s with same request_id=%s",str(client_id), str(operation), str(request_id))
+            send(('parent_performed_operation', global_seq_id - 1), to=client)
 
     def process_operation(operation):
         logger.info(

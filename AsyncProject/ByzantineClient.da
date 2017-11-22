@@ -47,6 +47,8 @@ class Client(process):
         self.operation_count = 0
         self.operation_iter = None
         self.temp_count = 0
+        self.last_executed_operation = None
+        self.last_operation_status = "DONE"
         #self.hash_error_message = get_hashed_message('Failed')
 
     def is_verified_result(client_id, request_id):
@@ -126,18 +128,26 @@ class Client(process):
         #output(str(client_id) + 'is successfully registered yoo ')
 
     def receive(msg=('last_served_request',result_shuttle), from_=olympus):
-        logger.info("received: 'last_served_request' shuttle FROM Olympus")
-        #count  = get_count_valid_result_proofs(result_shuttle)
-        print("last_served_request: client_id "+str(result_shuttle.get_client_id())+" request_id "+str(result_shuttle.get_request_id()))
-        response_request_id = result_shuttle.get_request_id()
-        result = result_shuttle.get_result()
-        process_result_shuttle(result,response_request_id,result_shuttle)
-        get_active_configuration_from_olympus()
-        await(self.received_active_config_at_client == 1)
-        print("done received_active_config_at_client after reconfiguration")
-        self.request_id = self.request_id + 1
-        self.temp_count = self.temp_count +1
-        handle_operation()
+        logger.info("received: 'last_served_request' shuttle FROM Olympus WITH result "+str(result_shuttle.get_result()))
+        if result_shuttle.get_result() is not None:
+            #print("tyrion lannister")
+            #count  = get_count_valid_result_proofs(result_shuttle)
+            #print("last_served_request: client_id "+str(result_shuttle.get_client_id())+" request_id "+str(result_shuttle.get_request_id()))
+            response_request_id = result_shuttle.get_request_id()
+            result = result_shuttle.get_result()
+            process_result_shuttle(result,response_request_id,result_shuttle)
+            get_active_configuration_from_olympus()
+            await(self.received_active_config_at_client == 1)
+            print("done received_active_config_at_client after reconfiguration")
+            self.request_id = self.request_id + 1
+            self.temp_count = self.temp_count +1
+            handle_operation()
+        else:
+            get_active_configuration_from_olympus()
+            await(self.received_active_config_at_client == 1)
+            print("done received_active_config_at_client after reconfiguration")
+            handle_operation()
+
         #self.waiting_for_new_configuration = 2
 
     def receive(msg=('parent_sent_result', result_parent), from_=parent_process):
@@ -192,6 +202,7 @@ class Client(process):
             # failure
             return False
         else:
+            self.last_operation_status = "DONE"
             logger.info("verified result for client_id:%s,request_id:%s ", str(
                 client_id), str(response_request_id))
             return True
@@ -247,10 +258,14 @@ class Client(process):
     def handle_operation():
         if self.temp_count >= self.operation_count:
             return
-        operation = next(self.operation_iter)
+
+        if self.last_operation_status == "DONE":
+            operation = next(self.operation_iter)
+        else:
+            operation = self.last_executed_operation
+        self.last_operation_status = "PENDING"
+        self.last_executed_operation = operation
         print("operation is "+str(operation) + " at client_id "+str(client_id) +" request_id is "+str(request_id))
-        logger.info("sent: 'perform_operation' WITH client_id=%s, request_id=%s,operation=%s TO head_replica", str(
-            client_id), str(request_id),str(operation))
 
         send(('parent_perform_operation', client_id,request_id, operation), to=parent_process)
         self.parent_request_switch = 1
@@ -259,6 +274,10 @@ class Client(process):
         self.switch = 1
         self.retransmit_switch = 1
         client_request = ClientRequest(client_id,request_id,retransmit_id,operation,self.private_key,self)
+        print(" at client client_request client_request hash :"+str(client_request))
+        logger.info("sent: 'perform_operation' WITH client_id=%s, request_id=%s,operation=%s TO head_replica", str(
+            client_id), str(request_id),str(operation))
+
         send(('perform_operation',client_request,None, None, None),to=head_replica)
 
         logger.info("sent: 'parent_verify' to parent_process")

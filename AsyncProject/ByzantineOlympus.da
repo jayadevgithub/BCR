@@ -253,6 +253,14 @@ class Olympus(process):
 
         return max_order_proof_replica_index
 
+    def print_catchup_messages(catup_msgs):
+        print("inside print_catchup_messages \n\n")
+        for replica_id in catup_msgs:
+            catup_msg = catup_msgs[replica_id]
+            for slot_ide in catup_msg.get_slot_ids():
+                print("replica_id "+str(replica_id) +" slot_ide "+str(slot_ide))
+        print("outside print_catchup_messages \n\n")
+
     def get_valid_quorum_of_replicas(max_order_proof_replica_index,slot_id_to_start_from):
         valid_quorum_of_replicas = []
         valid_quorum_of_replicas.append(max_order_proof_replica_index)
@@ -262,6 +270,7 @@ class Olympus(process):
         max_replica_public_key = self.public_keys[max_order_proof_replica_index]
         max_count_of_slots  = max_wedged_statement.get_count_of_slots()
         for replica_index in self.wedged_statements:
+            #print("inside get_valid_quorum_of_replicas replica_index "+str(replica_index))
             if replica_index == max_order_proof_replica_index: 
                 pass
             else:
@@ -308,11 +317,11 @@ class Olympus(process):
 
 
     def find_quorum_of_replicas():
-        print("find_quorum_of_replicas:called "+str(len(self.wedged_statements)) +" T "+str(T))
+        #print("find_quorum_of_replicas:called "+str(len(self.wedged_statements)) +" T "+str(T))
         while len(self.wedged_statements) > T:
-            print("inside find_quorum_of_replicas")
+           # print("inside find_quorum_of_replicas")
             checkpoint_terminal_slot_id =get_the_slot_to_start_catchup_process()
-            print("checkpoint_terminal_slot_id" +str(checkpoint_terminal_slot_id))
+            #print("checkpoint_terminal_slot_id" +str(checkpoint_terminal_slot_id))
             if checkpoint_terminal_slot_id is not None:
                 next_slot_id = checkpoint_terminal_slot_id + 1
             else:
@@ -322,7 +331,7 @@ class Olympus(process):
             faulty_replica_indices = []
             catchup_messages = None
             max_order_proof_replica_index = None
-            print("getting  max_order_proof replica index")
+            #print("getting  max_order_proof replica index")
             while True:
                 max_order_proof_replica_index = get_maximal_order_proof_replica_index(faulty_replica_indices)
                 if max_order_proof_replica_index is None:
@@ -330,7 +339,11 @@ class Olympus(process):
                     print("Quorum of T+1 valid replicas doesnot exist need to terminate")
                     break
 
+                #print("max_order_proof replica index "+str(max_order_proof_replica_index))
                 (valid_quorum_of_replicas,catchup_messages) = get_valid_quorum_of_replicas(max_order_proof_replica_index,next_slot_id)
+                
+                #print_catchup_messages(catchup_messages)
+
                 #print("here 1 "+str(valid_quorum_of_replicas))
                 if len(valid_quorum_of_replicas) == T + 1:
                     print("T+1 replicas found ")
@@ -343,10 +356,11 @@ class Olympus(process):
                 #need to abort or exit todo
             
 
-            print("Quorum of replicas found "+str(catchup_messages))
+            print("Quorum of replicas found "+str(valid_quorum_of_replicas))
 
             catchup_msg_identifier = 0
             for replica_id in valid_quorum_of_replicas:
+                print("getting catchup messages from replica_id:"+str(replica_id))
                 #replica_id = valid_quorum_of_replicas[i]
                 if catchup_messages is not None:
                     catchup_message = catchup_messages[replica_id]
@@ -395,7 +409,6 @@ class Olympus(process):
                 self.caughtup_messages_of_replicas = {}
                 del self.wedged_statements[max_order_proof_replica_index]
 
-
     def receive(msg=('reconfigure_request', replica_id), from_=process_cli_replica):
         print("inside olympus reconfigure_request")
         logger.warning("reconfigure_request: received reconfig request FROM replica_id=%s", str(replica_id))
@@ -407,8 +420,6 @@ class Olympus(process):
         # we may need to change the condition if crash failure is encountered
         await(self.count_of_wedged_statements > self.T)
         find_quorum_of_replicas()
-
-
 
     def perform_reconfiguration(running_state):
         client_process_info_temp = copy.deepcopy(self.client_process_info)
@@ -427,12 +438,19 @@ class Olympus(process):
         # work()
         # work()
         register_clients_at_replica()
+        print("clients registration done")
         for client_id in client_process_info_temp:
             shuttle = ResultShuttle()
+            print("client_id "+str(client_id))
             for replica_id in caughtup_messages_of_replicas_temp:
+               # print("parsing caughtup_message at client-id: "+str(client_id)+" at replica_id "+str(replica_id))
                 caughtup_message = caughtup_messages_of_replicas_temp[replica_id]
+                #print("after client_id 2: "+str(client_id))
                 result_statement = caughtup_message.get_last_result_statement_of_client_at_replica(client_id)
+                #print("after client_id 3: "+str(client_id))
                 shuttle.add_result_proof_at_replica_id(replica_id,result_statement)
+                #print("after client_id 4: "+str(client_id))
+            #print("after client_id "+str(client_id))
             client_process = client_process_info_temp[client_id]
             await(self.count_of_registrations[client_id] == len(replica_set))
             send(('last_served_request',shuttle),to=client_process)

@@ -10,7 +10,7 @@ t = 1
 num_client = 1
 # client timeout, in milliseconds.  if timer expires, resend request 
 # to all replicas, as described in section 3.3.
-client_timeout = 100
+client_timeout = 3
 # timeout, in milliseconds, for head and non-head servers, respectively:
 # if timer expires, send reconfiguration request to Olympus, as described 
 # in section 3.3.
@@ -31,7 +31,7 @@ replica_hosts = 0; 1; 2
 
 # CLIENT WORKLOAD
 
-workload[0] = put('jedi','luke skywalker); get('jedi'); get('jedi'); get('jedi'); get('jedi'); get('jedi'); get('jedi'); get('jedi'); get('jedi'); get('jedi'); get('jedi'); get('jedi'); get('jedi'); get('jedi')
+workload[0] = put('jedi','luke skywalker); get('jedi'); get('jedi'); get('jedi'); get('jedi')
 workload[1] = put('movie','star'); append('movie',' wars'); get('movie')
 workload[2] = pseudorandom(833,10)
 workload[3] = put('movie','star'); append('movie',' wars'); get('movie')
@@ -43,8 +43,8 @@ workload[3] = put('movie','star'); append('movie',' wars'); get('movie')
 # position in the chain, starting from 0.  replicas without a specified
 # failure scenario are failure-free.
 
-failures[0,0] = client_request(0,2), extra_op();client_request(0,2), change_operation()
-failures[0,1] = shuttle(0,1),drop_result_stmt()
+failures[0,0] = client_request(0,0), drop();client_request(0,0), change_operation()
+#failures[0,1] = shuttle(0,1),drop_result_stmt()
 #failures[0,0] = client_request(0,2), change_operation()
 #failures[0,1] = forwarded_request(1,1), change_operation()
 #failures[0,2] = result_shuttle(0,1),change_result(); shuttle(1,1),drop_result_stmt()

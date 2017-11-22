@@ -149,7 +149,7 @@ class Replica(process):
         self.checkpointing_interval = get_check_pointing_interval("checkpt_interval")
         if self.checkpointing_interval is None:
             self.checkpointing_interval = -1
-        print(" for replica_id " + str(replica_id)+" :-> \n"+str(failure_triggers) + "\n")
+        #print(" for replica_id " + str(replica_id)+" :-> \n"+str(failure_triggers) + "\n")
         self.logger = logging.getLogger("Replica " + str(replica_id))
         self.logger.setLevel(logging.INFO)
         self.olympus = None  # todo send it in constructor
@@ -195,11 +195,12 @@ class Replica(process):
         #print("inside decode_hash_and_verify")
         try:
             new_digest = public_key.verify(signed_message)
-            #print("hash_digest "+str(hash_digest))
-            #print("new_digest "+str(new_digest))
             if sodium_memcmp(hash_digest, new_digest):
                 return True
             else:
+                print("hash_digest "+str(hash_digest))
+                print("new_digest "+str(new_digest))
+
                 return False
         except:
             logger.error(
@@ -423,8 +424,9 @@ class Replica(process):
         operation_dict["key"] = "x"
         operation_dict["value"] = None
 
-        logger.warning("changing operation for client_id client_id:%s,request_id:%s,replica_id:%s,new operation:%s", str(client_id) ,str(request_id), str(replica_id),str(operation_dict))
+        logger.warning("changing operation for client_id :%s,request_id:%s,replica_id:%s,new operation:%s", str(client_id) ,str(request_id), str(replica_id),str(operation_dict))
         client_request.set_operation(operation_dict)
+        return operation_dict
 
     def increment_slot_number_failure():
         
@@ -458,6 +460,11 @@ class Replica(process):
         malicious_value = 'a'
         self.data_object[malicious_key] = malicious_value
        
+    def drop_failure(msg,msg_id,special_msg):
+        self.pending_drop_stmts = self.pending_drop_stmts - 1
+        logger.warning("drop_failure: dropping the incoming msg:%s,with %s_id:%s "+special_msg,str(msg),str(msg),str(msg_id))
+
+
     def invalid_result_signature_failure(client_id,request_id,result_shuttle):
         self.pending_invalid_result_signatures = self.pending_invalid_result_signatures - 1
         curr_result_stmt_signed_msg = result_shuttle.get_result_proof_of_replica(replica_id).get_result_signed_value_from_result_proof()
@@ -522,8 +529,8 @@ class Replica(process):
                     increment_slot_number_failure()
 
                 if self.pending_drop_stmts > 0:
-                    self.pending_drop_stmts = 0
-                    return
+                    drop_failure("wedged_request",wedge_request_id)
+                    return 
 
                 if self.pending_crash_stmts > 0:
                     crash_failure()
@@ -549,10 +556,19 @@ class Replica(process):
         
         send(('wedged_statement_from_replica',wedged_statement,replica_id), to=olympus)
 
-    def receive(msg=('send_retransmitted_status',cache_key),from_=head_replica):
+    def receive(msg=('send_retransmitted_status',cache_key,sender_replica_id),from_=valid_replica):
+        logger.info("send_retransmitted_status: received from replica_id:%s",str(sender_replica_id))
         self.send_acks_to_replicas[cache_key] = True
+        send(('acknowledge_retransmission',),to=valid_replica)
+        logger.info("send_retransmitted_status: acknowledged replica_id:%s",str(sender_replica_id))
+
+        #print(str(cache_key in send_acks_to_replicas)+" replica_id "+str(replica_id) + str(send_acks_to_replicas))
+
+    def receive(msg=('acknowledge_retransmission',),from_=tail_replica):
+        logger.info("acknowledge_retransmission: acknowledged at replica_id",str(replica_id))
         self.retransmit_acknowledged = 2
         #print(str(cache_key in send_acks_to_replicas)+" replica_id "+str(replica_id) + str(send_acks_to_replicas))
+
 
 
     def receive(msg=('truncate_history_till_check_point',completed_checkpoint_proof,checkpoint_identifier),from_=prev_replica):
@@ -575,7 +591,7 @@ class Replica(process):
                     increment_slot_number_failure()
 
                 if self.pending_drop_stmts > 0:
-                    self.pending_drop_stmts = 0
+                    drop_failure("completed_checkpoint_failure",checkpoint_identifier)
                     return
 
                 if self.pending_crash_stmts > 0:
@@ -634,7 +650,7 @@ class Replica(process):
                     increment_slot_number_failure()
 
                 if self.pending_drop_stmts > 0:
-                    self.pending_drop_stmts = 0
+                    drop_failure("checkpoint_failure",checkpoint_identifier)
                     return
 
                 if self.pending_crash_stmts > 0:
@@ -691,7 +707,7 @@ class Replica(process):
 
     #def receive(msg=('perform_operation', client_id, request_id, operation, client_process, prev_order_statement, result, result_shuttle, retransmitted, retransmit_id)):
     def receive(msg=('perform_operation', client_request, result, result_shuttle,next_slot_number),from_=valid_process):
-        #print(":here1 from:"+str(valid_process))
+        print("\n\n next_slot_number from:"+str(next_slot_number) + " current_slot_number "+str(self.current_slot_number)+" at replica_id "+str(replica_id))
         client_id = client_request.get_client_id()
         request_id = client_request.get_request_id()
         operation = client_request.get_operation()
@@ -710,11 +726,21 @@ class Replica(process):
             client_id), str(request_id), str(operation),str(current_slot_number))
 
 
-        if next_slot_number is not None and (next_slot_number != current_slot_number or decode_hash_and_verify(hash_of_client_request,signed_hash_of_client_request,client_public_key) is False) :
-            send(('reconfigure_request',replica_id), to=olympus)
-            logger.error("calling reconfig provable case of misbehaviour detected for client_id:%s,request_id:%s,replica_id:%s ",
+        if next_slot_number is not None and  decode_hash_and_verify(hash_of_client_request,signed_hash_of_client_request,client_public_key) is False :
+            logger.error("perform_operation:client_request signature mismatch calling reconfig provable case of misbehaviour detected for client_id:%s,request_id:%s,replica_id:%s ",
                          str(client_id), str(request_id), str(replica_id))
+
+            send(('reconfigure_request',replica_id), to=olympus)
             return
+
+
+        if next_slot_number is not None and next_slot_number != current_slot_number :
+            logger.error("perform_operation: slot_number mismatch  expected_slot:%s actual slot:%s calling reconfig provable case of misbehaviour detected for client_id:%s,request_id:%s,replica_id:%s ",str(next_slot_number),str(current_slot_number),str(client_id), str(request_id), str(replica_id))
+
+            send(('reconfigure_request',replica_id), to=olympus)
+            return
+
+
 
         if self.replica_state == self.Immutable:
             print("replica is immutable,wont process requests anymore")
@@ -753,7 +779,8 @@ class Replica(process):
                             increment_slot_number_failure()
 
                         if self.pending_drop_stmts > 0:
-                            self.pending_drop_stmts = 0
+                            special_msg = "in replica_id "+str(replica_id)+" in client_id "+str(client_id)
+                            drop_failure("forwarded_request",forwarded_request_id,special_msg)
                             return
 
                         if self.pending_crash_stmts > 0:
@@ -787,7 +814,8 @@ class Replica(process):
                             increment_slot_number_failure()
 
                         if self.pending_drop_stmts > 0:
-                            self.pending_drop_stmts = 0
+                            special_msg = "in replica_id "+str(replica_id)+" in client_id "+str(client_id)
+                            drop_failure("client_request",request_id,special_msg)
                             return
 
                         if self.pending_crash_stmts > 0:
@@ -811,7 +839,8 @@ class Replica(process):
                             increment_slot_number_failure()
 
                         if self.pending_drop_stmts > 0:
-                            self.pending_drop_stmts = 0
+                            special_msg = "in replica_id "+str(replica_id)+" in client_id "+str(client_id)
+                            drop_failure("shuttle_failure",request_id,special_msg)
                             return
 
                         if self.pending_crash_stmts > 0:
@@ -845,7 +874,7 @@ class Replica(process):
                     invalid_order_statement_signature_failure(client_id,request_id,result_shuttle)
 
                 if self.pending_change_operations > 0:
-                    change_operation_failure(client_request,client_id,request_id)
+                    operation = change_operation_failure(client_request,client_id,request_id)
 
                 next_replica = get_next_replica()
                 send(('perform_operation', client_request,result, result_shuttle, current_slot_number), to=next_replica)
@@ -886,7 +915,8 @@ class Replica(process):
                             increment_slot_number_failure()
 
                         if self.pending_drop_stmts > 0:
-                            self.pending_drop_stmts = 0
+                            special_msg = "in replica_id "+str(replica_id)+" in client_id "+str(client_id)
+                            drop_failure("client_request",request_id,special_msg)
                             return
 
                         if self.pending_crash_stmts > 0:
@@ -913,7 +943,8 @@ class Replica(process):
                             increment_slot_number_failure()
 
                         if self.pending_drop_stmts > 0:
-                            self.pending_drop_stmts = 0
+                            special_msg = "in replica_id "+str(replica_id)+" in client_id "+str(client_id)
+                            drop_failure("shuttle_failure",request_id,special_msg)                            
                             return
 
                         if self.pending_crash_stmts > 0:
@@ -941,7 +972,7 @@ class Replica(process):
                 if self.pending_invalid_result_signatures > 0:
                     invalid_result_signature_failure(client_id,request_id,result_shuttle)
                 if self.pending_change_operations > 0:
-                    change_operation_failure(client_request,client_id,request_id)
+                    operation = change_operation_failure(client_request,client_id,request_id)
                 if self.pending_invalid_order_stmts_signatures > 0:
                     invalid_order_statement_signature_failure(client_id,request_id,result_shuttle)
 
@@ -1107,7 +1138,7 @@ class Replica(process):
                     increment_slot_number_failure()
 
                 if self.pending_drop_stmts > 0:
-                    self.pending_drop_stmts = 0
+                    drop_failure("get_running_state",running_state_id)
                     return
 
                 if self.pending_crash_stmts > 0:
@@ -1134,7 +1165,7 @@ class Replica(process):
         
     def receive(msg=('perform_catchup_to_maximal_order_proof',catchup_message,catchup_msg_identifier),from_=olympus):
         logger.info("perform_catchup_to_maximal_order_proof: to replica_id=%s", str(replica_id))   
-        catchup_msg_failures = get_pending_failures_if_exists(None, catchup_msg_identifier, "checkpoint")
+        catchup_msg_failures = get_pending_failures_if_exists(None, catchup_msg_identifier, "catch_up")
         for catchup_msg_failure in catchup_msg_failures:
             if catchup_msg_failure is not None:
                 logger.info("Trigger Exists: in  replica=%s, trigger_name=checkpoint with catchup_msg_identifier=%s, failure_to_be_executed=%s", str(
@@ -1148,7 +1179,7 @@ class Replica(process):
                     increment_slot_number_failure()
 
                 if self.pending_drop_stmts > 0:
-                    self.pending_drop_stmts = 0
+                    drop_failure("catchup_message",catchup_msg_identifier)
                     return
 
                 if self.pending_crash_stmts > 0:
@@ -1157,26 +1188,22 @@ class Replica(process):
                 if self.pending_sleep_statements > 0:
                     sleep_failure()
 
-        if self.pending_extra_op_stmts > 0:
-            extra_op_failure()
-
-        if self.is_head_replica is True and self.pending_increment_slot_stmts > 0:
-            increment_slot_number_failure()
-
+        temp_last_served_request_for_a_client = copy.deepcopy(last_served_request_for_a_client)
         running_state = copy.deepcopy(self.data_object)     
         slot_ids = catchup_message.get_slot_ids()
+        print("slot_ids "+str(slot_ids) +" replica_id "+str(replica_id))
         for slot_id in slot_ids:
             catchup_statement = catchup_message.get_catchup_statement_at_slot_id(slot_id)
             operation = catchup_statement.get_operation_in_catchup_statement()
             client_id = catchup_statement.get_operation_requested_client_id()
             request_id = catchup_statement.get_request_id_sent_by_client()
             running_state,result = add_to_running_state(operation,running_state)
-            self.last_served_request_for_a_client[client_id] = ResultCache(client_id,request_id,result,replica_id,self.private_key,operation)
-
+            temp_last_served_request_for_a_client[client_id] = ResultCache(client_id,request_id,result,replica_id,self.private_key,operation)
+            print("last_served_request_for_a_client "+str(temp_last_served_request_for_a_client[0].get_result())+" at replica_id "+str(replica_id))
         caughtup_message = CaughtUpMessage(replica_id)
         caughtup_message.add_running_state(running_state,private_key)
-        for client_id in last_served_request_for_a_client:
-            result_statement = last_served_request_for_a_client[client_id]
+        for client_id in temp_last_served_request_for_a_client:
+            result_statement = temp_last_served_request_for_a_client[client_id]
             caughtup_message.add_last_served_request_result_statement(client_id,result_statement)
 
         self.caughtup_message =caughtup_message
@@ -1229,7 +1256,7 @@ class Replica(process):
                 if self.pending_increment_slot_stmts > 0:
                     increment_slot_number_failure()
 
-                send(('send_retransmitted_status',cache_key),to = tail_replica)
+                send(('send_retransmitted_status',cache_key,replica_id),to = tail_replica)
                 self.retransmit_acknowledged = 1
                 await(self.retransmit_acknowledged == 2)
                 #output(" not found in cache retransmitting the request")
@@ -1265,7 +1292,8 @@ class Replica(process):
                         logger.warning(
                             "TIMEOUT occurred, this is a provable case of misbehaviour. Send reconfiguration request")
             else:
-                send(('send_retransmitted_status',cache_key),to = tail_replica)
+                logger.info("send_retransmitted_status: cache_key "+str(cache_key) +" at replica_id "+str(replica_id))
+                send(('send_retransmitted_status',cache_key,replica_id),to = tail_replica)
                 self.retransmit_acknowledged = 1
                 await(self.retransmit_acknowledged == 2)
 
@@ -1275,11 +1303,12 @@ class Replica(process):
                 # for non head replicas
                 # start timer and send the request to head
                 # send(('start_timer_for_request',client_id,request_id),to=head_replica)
+                logger.info("retransmitting_to_head_replica: 'perform_operation' with client_id=%s, request_id=%s, operation=%s TO head_replica", str(
+                    client_id), str(request_id), str(operation))
+
                 send(('perform_operation', client_request,None,None,None), to=head_replica)
                 # send(('perform_operation', client_id, request_id, operation,
                 #       client_process, None, None, None, True, retransmit_id), to=head_replica)
-                logger.info("retransmitting_to_head_replica: 'perform_operation' with client_id=%s, request_id=%s, operation=%s TO head_replica", str(
-                    client_id), str(request_id), str(operation))
                 #output("in non head replica sent")
                 self.switch == 1
                 if await(self.switch == 2):
@@ -1326,7 +1355,8 @@ class Replica(process):
                     increment_slot_number_failure()
 
                 if self.pending_drop_stmts > 0:
-                    self.pending_drop_stmts = 0
+                    special_msg = "in replica_id "+str(replica_id)+" in client_id "+str(client_id)
+                    drop_failure("result_shuttle",request_id,special_msg)
                     return
 
                 if self.pending_crash_stmts > 0:
@@ -1467,7 +1497,10 @@ class CaughtUpMessage():
         self.last_served_request_for_a_client[client_id]=result_proof
 
     def get_last_result_statement_of_client_at_replica(self,client_id):
-        return self.last_served_request_for_a_client[client_id]
+        if len(self.last_served_request_for_a_client) > 0:
+            return self.last_served_request_for_a_client[client_id]
+        else:
+            return None
 
     def get_hash_of_running_state(self):
         return self.hash_of_running_state
@@ -1491,7 +1524,7 @@ class ClientRequest():
         # if retransmit_id is None:
         #     concatenated_msg = str(client_id) + str(operation) + str(request_id)
         # else:
-        concatenated_msg = str(client_id) + str(operation) + str(request_id) + str(retransmit_id)
+        concatenated_msg = str(client_id) + str(operation) + str(request_id) #+ str(retransmit_id)
         self.hash_request, self.signed_hash_request = encode_hash(concatenated_msg, private_key)
 
     def set_retransmitted_id(self,retransmit_id):
@@ -1520,7 +1553,7 @@ class ClientRequest():
         self.operation = operation
 
     def get_hash_of_client_request(self):
-        concatenated_msg = str(self.client_id) + str(self.operation) + str(self.request_id) + str(self.retransmit_id)
+        concatenated_msg = str(self.client_id) + str(self.operation) + str(self.request_id) #+ str(self.retransmit_id)
         return get_hash(concatenated_msg)
 
     def get_signed_hash_of_client_request(self):
@@ -1680,18 +1713,23 @@ class ResultShuttle():
 
     def add_result_proof_at_replica_id(self,replica_id,cached_result):
         self.result_proofs[replica_id] = cached_result
-        if self.client_id is not None and self.request_id is not None:
-            print("replica_id"+str(replica_id)+"old_client_id "+str(self.client_id)+" old_request_id"+str(self.request_id))
-        self.client_id = cached_result.get_client_id()
-        self.request_id = cached_result.get_request_id()
-        self.result = cached_result.get_result()
-        print("replica_id"+str(replica_id)+"new_client_id "+str(self.client_id)+" new_request_id"+str(self.request_id))
+        #if self.client_id is not None and self.request_id is not None:
+        #    
+        if cached_result is not None:
+            #print("inside add_result_proof_at_replica_id: replica_id"+str(replica_id)+"old_client_id "+str(self.client_id)+" old_request_id"+str(self.request_id)+"\n")
+            self.client_id = cached_result.get_client_id()
+            self.request_id = cached_result.get_request_id()
+            self.result = cached_result.get_result()
+            #print("inside add_result_proof_at_replica_id: replica_id"+str(replica_id)+"new_client_id "+str(self.client_id)+" new_request_id"+str(self.request_id) +" with result "+str(self.result)+"\n")
     
     def get_result_proof_of_replica(self,replica_id):
         return self.result_proofs[replica_id]
 
     def get_replica_ids_from_shuttle(self):
         return self.result_proofs.keys()
+
+    def get_count_of_replica_ids_from_shuttle(self):
+        return len(self.result_proofs)
 
     def get_client_id(self):
         return self.client_id
@@ -2109,6 +2147,14 @@ class Olympus(process):
 
         return max_order_proof_replica_index
 
+    def print_catchup_messages(catup_msgs):
+        print("inside print_catchup_messages \n\n")
+        for replica_id in catup_msgs:
+            catup_msg = catup_msgs[replica_id]
+            for slot_ide in catup_msg.get_slot_ids():
+                print("replica_id "+str(replica_id) +" slot_ide "+str(slot_ide))
+        print("outside print_catchup_messages \n\n")
+
     def get_valid_quorum_of_replicas(max_order_proof_replica_index,slot_id_to_start_from):
         valid_quorum_of_replicas = []
         valid_quorum_of_replicas.append(max_order_proof_replica_index)
@@ -2118,6 +2164,7 @@ class Olympus(process):
         max_replica_public_key = self.public_keys[max_order_proof_replica_index]
         max_count_of_slots  = max_wedged_statement.get_count_of_slots()
         for replica_index in self.wedged_statements:
+            #print("inside get_valid_quorum_of_replicas replica_index "+str(replica_index))
             if replica_index == max_order_proof_replica_index: 
                 pass
             else:
@@ -2164,11 +2211,11 @@ class Olympus(process):
 
 
     def find_quorum_of_replicas():
-        print("find_quorum_of_replicas:called "+str(len(self.wedged_statements)) +" T "+str(T))
+        #print("find_quorum_of_replicas:called "+str(len(self.wedged_statements)) +" T "+str(T))
         while len(self.wedged_statements) > T:
-            print("inside find_quorum_of_replicas")
+           # print("inside find_quorum_of_replicas")
             checkpoint_terminal_slot_id =get_the_slot_to_start_catchup_process()
-            print("checkpoint_terminal_slot_id" +str(checkpoint_terminal_slot_id))
+            #print("checkpoint_terminal_slot_id" +str(checkpoint_terminal_slot_id))
             if checkpoint_terminal_slot_id is not None:
                 next_slot_id = checkpoint_terminal_slot_id + 1
             else:
@@ -2178,7 +2225,7 @@ class Olympus(process):
             faulty_replica_indices = []
             catchup_messages = None
             max_order_proof_replica_index = None
-            print("getting  max_order_proof replica index")
+            #print("getting  max_order_proof replica index")
             while True:
                 max_order_proof_replica_index = get_maximal_order_proof_replica_index(faulty_replica_indices)
                 if max_order_proof_replica_index is None:
@@ -2186,7 +2233,11 @@ class Olympus(process):
                     print("Quorum of T+1 valid replicas doesnot exist need to terminate")
                     break
 
+                #print("max_order_proof replica index "+str(max_order_proof_replica_index))
                 (valid_quorum_of_replicas,catchup_messages) = get_valid_quorum_of_replicas(max_order_proof_replica_index,next_slot_id)
+                
+                #print_catchup_messages(catchup_messages)
+
                 #print("here 1 "+str(valid_quorum_of_replicas))
                 if len(valid_quorum_of_replicas) == T + 1:
                     print("T+1 replicas found ")
@@ -2199,10 +2250,11 @@ class Olympus(process):
                 #need to abort or exit todo
             
 
-            print("Quorum of replicas found "+str(catchup_messages))
+            print("Quorum of replicas found "+str(valid_quorum_of_replicas))
 
             catchup_msg_identifier = 0
             for replica_id in valid_quorum_of_replicas:
+                print("getting catchup messages from replica_id:"+str(replica_id))
                 #replica_id = valid_quorum_of_replicas[i]
                 if catchup_messages is not None:
                     catchup_message = catchup_messages[replica_id]
@@ -2251,7 +2303,6 @@ class Olympus(process):
                 self.caughtup_messages_of_replicas = {}
                 del self.wedged_statements[max_order_proof_replica_index]
 
-
     def receive(msg=('reconfigure_request', replica_id), from_=process_cli_replica):
         print("inside olympus reconfigure_request")
         logger.warning("reconfigure_request: received reconfig request FROM replica_id=%s", str(replica_id))
@@ -2263,8 +2314,6 @@ class Olympus(process):
         # we may need to change the condition if crash failure is encountered
         await(self.count_of_wedged_statements > self.T)
         find_quorum_of_replicas()
-
-
 
     def perform_reconfiguration(running_state):
         client_process_info_temp = copy.deepcopy(self.client_process_info)
@@ -2283,12 +2332,19 @@ class Olympus(process):
         # work()
         # work()
         register_clients_at_replica()
+        print("clients registration done")
         for client_id in client_process_info_temp:
             shuttle = ResultShuttle()
+            print("client_id "+str(client_id))
             for replica_id in caughtup_messages_of_replicas_temp:
+               # print("parsing caughtup_message at client-id: "+str(client_id)+" at replica_id "+str(replica_id))
                 caughtup_message = caughtup_messages_of_replicas_temp[replica_id]
+                #print("after client_id 2: "+str(client_id))
                 result_statement = caughtup_message.get_last_result_statement_of_client_at_replica(client_id)
+                #print("after client_id 3: "+str(client_id))
                 shuttle.add_result_proof_at_replica_id(replica_id,result_statement)
+                #print("after client_id 4: "+str(client_id))
+            #print("after client_id "+str(client_id))
             client_process = client_process_info_temp[client_id]
             await(self.count_of_registrations[client_id] == len(replica_set))
             send(('last_served_request',shuttle),to=client_process)
@@ -2411,6 +2467,8 @@ class Client(process):
         self.operation_count = 0
         self.operation_iter = None
         self.temp_count = 0
+        self.last_executed_operation = None
+        self.last_operation_status = "DONE"
         #self.hash_error_message = get_hashed_message('Failed')
 
     def is_verified_result(client_id, request_id):
@@ -2490,18 +2548,26 @@ class Client(process):
         #output(str(client_id) + 'is successfully registered yoo ')
 
     def receive(msg=('last_served_request',result_shuttle), from_=olympus):
-        logger.info("received: 'last_served_request' shuttle FROM Olympus")
-        #count  = get_count_valid_result_proofs(result_shuttle)
-        print("last_served_request: client_id "+str(result_shuttle.get_client_id())+" request_id "+str(result_shuttle.get_request_id()))
-        response_request_id = result_shuttle.get_request_id()
-        result = result_shuttle.get_result()
-        process_result_shuttle(result,response_request_id,result_shuttle)
-        get_active_configuration_from_olympus()
-        await(self.received_active_config_at_client == 1)
-        print("done received_active_config_at_client after reconfiguration")
-        self.request_id = self.request_id + 1
-        self.temp_count = self.temp_count +1
-        handle_operation()
+        logger.info("received: 'last_served_request' shuttle FROM Olympus WITH result "+str(result_shuttle.get_result()))
+        if result_shuttle.get_result() is not None:
+            #print("tyrion lannister")
+            #count  = get_count_valid_result_proofs(result_shuttle)
+            #print("last_served_request: client_id "+str(result_shuttle.get_client_id())+" request_id "+str(result_shuttle.get_request_id()))
+            response_request_id = result_shuttle.get_request_id()
+            result = result_shuttle.get_result()
+            process_result_shuttle(result,response_request_id,result_shuttle)
+            get_active_configuration_from_olympus()
+            await(self.received_active_config_at_client == 1)
+            print("done received_active_config_at_client after reconfiguration")
+            self.request_id = self.request_id + 1
+            self.temp_count = self.temp_count +1
+            handle_operation()
+        else:
+            get_active_configuration_from_olympus()
+            await(self.received_active_config_at_client == 1)
+            print("done received_active_config_at_client after reconfiguration")
+            handle_operation()
+
         #self.waiting_for_new_configuration = 2
 
     def receive(msg=('parent_sent_result', result_parent), from_=parent_process):
@@ -2556,6 +2622,7 @@ class Client(process):
             # failure
             return False
         else:
+            self.last_operation_status = "DONE"
             logger.info("verified result for client_id:%s,request_id:%s ", str(
                 client_id), str(response_request_id))
             return True
@@ -2611,10 +2678,14 @@ class Client(process):
     def handle_operation():
         if self.temp_count >= self.operation_count:
             return
-        operation = next(self.operation_iter)
+
+        if self.last_operation_status == "DONE":
+            operation = next(self.operation_iter)
+        else:
+            operation = self.last_executed_operation
+        self.last_operation_status = "PENDING"
+        self.last_executed_operation = operation
         print("operation is "+str(operation) + " at client_id "+str(client_id) +" request_id is "+str(request_id))
-        logger.info("sent: 'perform_operation' WITH client_id=%s, request_id=%s,operation=%s TO head_replica", str(
-            client_id), str(request_id),str(operation))
 
         send(('parent_perform_operation', client_id,request_id, operation), to=parent_process)
         self.parent_request_switch = 1
@@ -2623,6 +2694,10 @@ class Client(process):
         self.switch = 1
         self.retransmit_switch = 1
         client_request = ClientRequest(client_id,request_id,retransmit_id,operation,self.private_key,self)
+        print(" at client client_request client_request hash :"+str(client_request))
+        logger.info("sent: 'perform_operation' WITH client_id=%s, request_id=%s,operation=%s TO head_replica", str(
+            client_id), str(request_id),str(operation))
+
         send(('perform_operation',client_request,None, None, None),to=head_replica)
 
         logger.info("sent: 'parent_verify' to parent_process")
@@ -2849,6 +2924,8 @@ class ParentProcess(process):
         self.data_object = {}
         self.global_result_of_operations = {}
         self.global_seq_id = 0
+        self.client_request_map = {}
+
 
     def receive(msg=('get_result_from_parent_process', globalseqid), from_=client):
         logger.info(
@@ -2856,19 +2933,23 @@ class ParentProcess(process):
         result = self.global_result_of_operations[str(globalseqid)]
         logger.info("presult=%s", str(result))
         send(('parent_sent_result', result), to=client)
-        logger.info(
-            "sent: 'parent_sent_result' TO client, with result=%s", str(result))
+        logger.info("sent: 'parent_sent_result' TO client, with result=%s", str(result))
 
     def receive(msg=('parent_perform_operation', client_id, request_id, operation), from_=client):
-        logger.info(
-            "received: 'parent_perform_operation' FROM client=%s, operation=%s",str(client_id), str(operation))
-        result = process_operation(operation)
-        global_result_of_operations[str(global_seq_id)] = result
-        self.global_seq_id += 1
-        send(('parent_performed_operation', global_seq_id - 1), to=client)
-        logger.info("sent: 'parent_performed_operation to client_id:%s', operation=%s, result=%s", str(client_id),str(
-            operation), str(result))
-        #logger.info("global result=%s", str(global_result_of_operations))
+        cache_key = '00000'+str(client_id)+'11111' + str(request_id)
+        if cache_key not in client_request_map:
+            logger.info("received: 'parent_perform_operation' FROM client=%s, operation=%s",str(client_id), str(operation))
+            result = process_operation(operation)
+            global_result_of_operations[str(global_seq_id)] = result
+            self.global_seq_id += 1
+            send(('parent_performed_operation', global_seq_id - 1), to=client)
+            logger.info("sent: 'parent_performed_operation to client_id:%s', operation=%s, result=%s", str(client_id),str(
+                operation), str(result))
+            #logger.info("global result=%s", str(global_result_of_operations))
+            client_request_map[cache_key] = True
+        else:
+            logger.info("received: duplicate 'parent_perform_operation' FROM client=%s, operation=%s with same request_id=%s",str(client_id), str(operation), str(request_id))
+            send(('parent_performed_operation', global_seq_id - 1), to=client)
 
     def process_operation(operation):
         logger.info(

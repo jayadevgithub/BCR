@@ -149,7 +149,7 @@ class Replica(process):
         self.checkpointing_interval = get_check_pointing_interval("checkpt_interval")
         if self.checkpointing_interval is None:
             self.checkpointing_interval = -1
-        print(" for replica_id " + str(replica_id)+" :-> \n"+str(failure_triggers) + "\n")
+        #print(" for replica_id " + str(replica_id)+" :-> \n"+str(failure_triggers) + "\n")
         self.logger = logging.getLogger("Replica " + str(replica_id))
         self.logger.setLevel(logging.INFO)
         self.olympus = None  # todo send it in constructor
@@ -195,11 +195,12 @@ class Replica(process):
         #print("inside decode_hash_and_verify")
         try:
             new_digest = public_key.verify(signed_message)
-            #print("hash_digest "+str(hash_digest))
-            #print("new_digest "+str(new_digest))
             if sodium_memcmp(hash_digest, new_digest):
                 return True
             else:
+                print("hash_digest "+str(hash_digest))
+                print("new_digest "+str(new_digest))
+
                 return False
         except:
             logger.error(
@@ -423,8 +424,9 @@ class Replica(process):
         operation_dict["key"] = "x"
         operation_dict["value"] = None
 
-        logger.warning("changing operation for client_id client_id:%s,request_id:%s,replica_id:%s,new operation:%s", str(client_id) ,str(request_id), str(replica_id),str(operation_dict))
+        logger.warning("changing operation for client_id :%s,request_id:%s,replica_id:%s,new operation:%s", str(client_id) ,str(request_id), str(replica_id),str(operation_dict))
         client_request.set_operation(operation_dict)
+        return operation_dict
 
     def increment_slot_number_failure():
         
@@ -458,6 +460,11 @@ class Replica(process):
         malicious_value = 'a'
         self.data_object[malicious_key] = malicious_value
        
+    def drop_failure(msg,msg_id,special_msg):
+        self.pending_drop_stmts = self.pending_drop_stmts - 1
+        logger.warning("drop_failure: dropping the incoming msg:%s,with %s_id:%s "+special_msg,str(msg),str(msg),str(msg_id))
+
+
     def invalid_result_signature_failure(client_id,request_id,result_shuttle):
         self.pending_invalid_result_signatures = self.pending_invalid_result_signatures - 1
         curr_result_stmt_signed_msg = result_shuttle.get_result_proof_of_replica(replica_id).get_result_signed_value_from_result_proof()
@@ -522,8 +529,8 @@ class Replica(process):
                     increment_slot_number_failure()
 
                 if self.pending_drop_stmts > 0:
-                    self.pending_drop_stmts = 0
-                    return
+                    drop_failure("wedged_request",wedge_request_id)
+                    return 
 
                 if self.pending_crash_stmts > 0:
                     crash_failure()
@@ -549,10 +556,19 @@ class Replica(process):
         
         send(('wedged_statement_from_replica',wedged_statement,replica_id), to=olympus)
 
-    def receive(msg=('send_retransmitted_status',cache_key),from_=head_replica):
+    def receive(msg=('send_retransmitted_status',cache_key,sender_replica_id),from_=valid_replica):
+        logger.info("send_retransmitted_status: received from replica_id:%s",str(sender_replica_id))
         self.send_acks_to_replicas[cache_key] = True
+        send(('acknowledge_retransmission',),to=valid_replica)
+        logger.info("send_retransmitted_status: acknowledged replica_id:%s",str(sender_replica_id))
+
+        #print(str(cache_key in send_acks_to_replicas)+" replica_id "+str(replica_id) + str(send_acks_to_replicas))
+
+    def receive(msg=('acknowledge_retransmission',),from_=tail_replica):
+        logger.info("acknowledge_retransmission: acknowledged at replica_id",str(replica_id))
         self.retransmit_acknowledged = 2
         #print(str(cache_key in send_acks_to_replicas)+" replica_id "+str(replica_id) + str(send_acks_to_replicas))
+
 
 
     def receive(msg=('truncate_history_till_check_point',completed_checkpoint_proof,checkpoint_identifier),from_=prev_replica):
@@ -575,7 +591,7 @@ class Replica(process):
                     increment_slot_number_failure()
 
                 if self.pending_drop_stmts > 0:
-                    self.pending_drop_stmts = 0
+                    drop_failure("completed_checkpoint_failure",checkpoint_identifier)
                     return
 
                 if self.pending_crash_stmts > 0:
@@ -634,7 +650,7 @@ class Replica(process):
                     increment_slot_number_failure()
 
                 if self.pending_drop_stmts > 0:
-                    self.pending_drop_stmts = 0
+                    drop_failure("checkpoint_failure",checkpoint_identifier)
                     return
 
                 if self.pending_crash_stmts > 0:
@@ -691,7 +707,7 @@ class Replica(process):
 
     #def receive(msg=('perform_operation', client_id, request_id, operation, client_process, prev_order_statement, result, result_shuttle, retransmitted, retransmit_id)):
     def receive(msg=('perform_operation', client_request, result, result_shuttle,next_slot_number),from_=valid_process):
-        #print(":here1 from:"+str(valid_process))
+        print("\n\n next_slot_number from:"+str(next_slot_number) + " current_slot_number "+str(self.current_slot_number)+" at replica_id "+str(replica_id))
         client_id = client_request.get_client_id()
         request_id = client_request.get_request_id()
         operation = client_request.get_operation()
@@ -710,11 +726,21 @@ class Replica(process):
             client_id), str(request_id), str(operation),str(current_slot_number))
 
 
-        if next_slot_number is not None and (next_slot_number != current_slot_number or decode_hash_and_verify(hash_of_client_request,signed_hash_of_client_request,client_public_key) is False) :
-            send(('reconfigure_request',replica_id), to=olympus)
-            logger.error("calling reconfig provable case of misbehaviour detected for client_id:%s,request_id:%s,replica_id:%s ",
+        if next_slot_number is not None and  decode_hash_and_verify(hash_of_client_request,signed_hash_of_client_request,client_public_key) is False :
+            logger.error("perform_operation:client_request signature mismatch calling reconfig provable case of misbehaviour detected for client_id:%s,request_id:%s,replica_id:%s ",
                          str(client_id), str(request_id), str(replica_id))
+
+            send(('reconfigure_request',replica_id), to=olympus)
             return
+
+
+        if next_slot_number is not None and next_slot_number != current_slot_number :
+            logger.error("perform_operation: slot_number mismatch  expected_slot:%s actual slot:%s calling reconfig provable case of misbehaviour detected for client_id:%s,request_id:%s,replica_id:%s ",str(next_slot_number),str(current_slot_number),str(client_id), str(request_id), str(replica_id))
+
+            send(('reconfigure_request',replica_id), to=olympus)
+            return
+
+
 
         if self.replica_state == self.Immutable:
             print("replica is immutable,wont process requests anymore")
@@ -753,7 +779,8 @@ class Replica(process):
                             increment_slot_number_failure()
 
                         if self.pending_drop_stmts > 0:
-                            self.pending_drop_stmts = 0
+                            special_msg = "in replica_id "+str(replica_id)+" in client_id "+str(client_id)
+                            drop_failure("forwarded_request",forwarded_request_id,special_msg)
                             return
 
                         if self.pending_crash_stmts > 0:
@@ -787,7 +814,8 @@ class Replica(process):
                             increment_slot_number_failure()
 
                         if self.pending_drop_stmts > 0:
-                            self.pending_drop_stmts = 0
+                            special_msg = "in replica_id "+str(replica_id)+" in client_id "+str(client_id)
+                            drop_failure("client_request",request_id,special_msg)
                             return
 
                         if self.pending_crash_stmts > 0:
@@ -811,7 +839,8 @@ class Replica(process):
                             increment_slot_number_failure()
 
                         if self.pending_drop_stmts > 0:
-                            self.pending_drop_stmts = 0
+                            special_msg = "in replica_id "+str(replica_id)+" in client_id "+str(client_id)
+                            drop_failure("shuttle_failure",request_id,special_msg)
                             return
 
                         if self.pending_crash_stmts > 0:
@@ -845,7 +874,7 @@ class Replica(process):
                     invalid_order_statement_signature_failure(client_id,request_id,result_shuttle)
 
                 if self.pending_change_operations > 0:
-                    change_operation_failure(client_request,client_id,request_id)
+                    operation = change_operation_failure(client_request,client_id,request_id)
 
                 next_replica = get_next_replica()
                 send(('perform_operation', client_request,result, result_shuttle, current_slot_number), to=next_replica)
@@ -886,7 +915,8 @@ class Replica(process):
                             increment_slot_number_failure()
 
                         if self.pending_drop_stmts > 0:
-                            self.pending_drop_stmts = 0
+                            special_msg = "in replica_id "+str(replica_id)+" in client_id "+str(client_id)
+                            drop_failure("client_request",request_id,special_msg)
                             return
 
                         if self.pending_crash_stmts > 0:
@@ -913,7 +943,8 @@ class Replica(process):
                             increment_slot_number_failure()
 
                         if self.pending_drop_stmts > 0:
-                            self.pending_drop_stmts = 0
+                            special_msg = "in replica_id "+str(replica_id)+" in client_id "+str(client_id)
+                            drop_failure("shuttle_failure",request_id,special_msg)                            
                             return
 
                         if self.pending_crash_stmts > 0:
@@ -941,7 +972,7 @@ class Replica(process):
                 if self.pending_invalid_result_signatures > 0:
                     invalid_result_signature_failure(client_id,request_id,result_shuttle)
                 if self.pending_change_operations > 0:
-                    change_operation_failure(client_request,client_id,request_id)
+                    operation = change_operation_failure(client_request,client_id,request_id)
                 if self.pending_invalid_order_stmts_signatures > 0:
                     invalid_order_statement_signature_failure(client_id,request_id,result_shuttle)
 
@@ -1107,7 +1138,7 @@ class Replica(process):
                     increment_slot_number_failure()
 
                 if self.pending_drop_stmts > 0:
-                    self.pending_drop_stmts = 0
+                    drop_failure("get_running_state",running_state_id)
                     return
 
                 if self.pending_crash_stmts > 0:
@@ -1134,7 +1165,7 @@ class Replica(process):
         
     def receive(msg=('perform_catchup_to_maximal_order_proof',catchup_message,catchup_msg_identifier),from_=olympus):
         logger.info("perform_catchup_to_maximal_order_proof: to replica_id=%s", str(replica_id))   
-        catchup_msg_failures = get_pending_failures_if_exists(None, catchup_msg_identifier, "checkpoint")
+        catchup_msg_failures = get_pending_failures_if_exists(None, catchup_msg_identifier, "catch_up")
         for catchup_msg_failure in catchup_msg_failures:
             if catchup_msg_failure is not None:
                 logger.info("Trigger Exists: in  replica=%s, trigger_name=checkpoint with catchup_msg_identifier=%s, failure_to_be_executed=%s", str(
@@ -1148,7 +1179,7 @@ class Replica(process):
                     increment_slot_number_failure()
 
                 if self.pending_drop_stmts > 0:
-                    self.pending_drop_stmts = 0
+                    drop_failure("catchup_message",catchup_msg_identifier)
                     return
 
                 if self.pending_crash_stmts > 0:
@@ -1157,26 +1188,22 @@ class Replica(process):
                 if self.pending_sleep_statements > 0:
                     sleep_failure()
 
-        if self.pending_extra_op_stmts > 0:
-            extra_op_failure()
-
-        if self.is_head_replica is True and self.pending_increment_slot_stmts > 0:
-            increment_slot_number_failure()
-
+        temp_last_served_request_for_a_client = copy.deepcopy(last_served_request_for_a_client)
         running_state = copy.deepcopy(self.data_object)     
         slot_ids = catchup_message.get_slot_ids()
+        print("slot_ids "+str(slot_ids) +" replica_id "+str(replica_id))
         for slot_id in slot_ids:
             catchup_statement = catchup_message.get_catchup_statement_at_slot_id(slot_id)
             operation = catchup_statement.get_operation_in_catchup_statement()
             client_id = catchup_statement.get_operation_requested_client_id()
             request_id = catchup_statement.get_request_id_sent_by_client()
             running_state,result = add_to_running_state(operation,running_state)
-            self.last_served_request_for_a_client[client_id] = ResultCache(client_id,request_id,result,replica_id,self.private_key,operation)
-
+            temp_last_served_request_for_a_client[client_id] = ResultCache(client_id,request_id,result,replica_id,self.private_key,operation)
+            print("last_served_request_for_a_client "+str(temp_last_served_request_for_a_client[0].get_result())+" at replica_id "+str(replica_id))
         caughtup_message = CaughtUpMessage(replica_id)
         caughtup_message.add_running_state(running_state,private_key)
-        for client_id in last_served_request_for_a_client:
-            result_statement = last_served_request_for_a_client[client_id]
+        for client_id in temp_last_served_request_for_a_client:
+            result_statement = temp_last_served_request_for_a_client[client_id]
             caughtup_message.add_last_served_request_result_statement(client_id,result_statement)
 
         self.caughtup_message =caughtup_message
@@ -1229,7 +1256,7 @@ class Replica(process):
                 if self.pending_increment_slot_stmts > 0:
                     increment_slot_number_failure()
 
-                send(('send_retransmitted_status',cache_key),to = tail_replica)
+                send(('send_retransmitted_status',cache_key,replica_id),to = tail_replica)
                 self.retransmit_acknowledged = 1
                 await(self.retransmit_acknowledged == 2)
                 #output(" not found in cache retransmitting the request")
@@ -1265,7 +1292,8 @@ class Replica(process):
                         logger.warning(
                             "TIMEOUT occurred, this is a provable case of misbehaviour. Send reconfiguration request")
             else:
-                send(('send_retransmitted_status',cache_key),to = tail_replica)
+                logger.info("send_retransmitted_status: cache_key "+str(cache_key) +" at replica_id "+str(replica_id))
+                send(('send_retransmitted_status',cache_key,replica_id),to = tail_replica)
                 self.retransmit_acknowledged = 1
                 await(self.retransmit_acknowledged == 2)
 
@@ -1275,11 +1303,12 @@ class Replica(process):
                 # for non head replicas
                 # start timer and send the request to head
                 # send(('start_timer_for_request',client_id,request_id),to=head_replica)
+                logger.info("retransmitting_to_head_replica: 'perform_operation' with client_id=%s, request_id=%s, operation=%s TO head_replica", str(
+                    client_id), str(request_id), str(operation))
+
                 send(('perform_operation', client_request,None,None,None), to=head_replica)
                 # send(('perform_operation', client_id, request_id, operation,
                 #       client_process, None, None, None, True, retransmit_id), to=head_replica)
-                logger.info("retransmitting_to_head_replica: 'perform_operation' with client_id=%s, request_id=%s, operation=%s TO head_replica", str(
-                    client_id), str(request_id), str(operation))
                 #output("in non head replica sent")
                 self.switch == 1
                 if await(self.switch == 2):
@@ -1326,7 +1355,8 @@ class Replica(process):
                     increment_slot_number_failure()
 
                 if self.pending_drop_stmts > 0:
-                    self.pending_drop_stmts = 0
+                    special_msg = "in replica_id "+str(replica_id)+" in client_id "+str(client_id)
+                    drop_failure("result_shuttle",request_id,special_msg)
                     return
 
                 if self.pending_crash_stmts > 0:

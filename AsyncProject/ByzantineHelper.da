@@ -100,8 +100,10 @@ class CaughtUpMessage():
         self.last_served_request_for_a_client[client_id]=result_proof
 
     def get_last_result_statement_of_client_at_replica(self,client_id):
-        if len(self.last_served_request_for_a_client)
-        return self.last_served_request_for_a_client[client_id]
+        if len(self.last_served_request_for_a_client) > 0:
+            return self.last_served_request_for_a_client[client_id]
+        else:
+            return None
 
     def get_hash_of_running_state(self):
         return self.hash_of_running_state
@@ -125,7 +127,7 @@ class ClientRequest():
         # if retransmit_id is None:
         #     concatenated_msg = str(client_id) + str(operation) + str(request_id)
         # else:
-        concatenated_msg = str(client_id) + str(operation) + str(request_id) + str(retransmit_id)
+        concatenated_msg = str(client_id) + str(operation) + str(request_id) #+ str(retransmit_id)
         self.hash_request, self.signed_hash_request = encode_hash(concatenated_msg, private_key)
 
     def set_retransmitted_id(self,retransmit_id):
@@ -154,7 +156,7 @@ class ClientRequest():
         self.operation = operation
 
     def get_hash_of_client_request(self):
-        concatenated_msg = str(self.client_id) + str(self.operation) + str(self.request_id) + str(self.retransmit_id)
+        concatenated_msg = str(self.client_id) + str(self.operation) + str(self.request_id) #+ str(self.retransmit_id)
         return get_hash(concatenated_msg)
 
     def get_signed_hash_of_client_request(self):
@@ -314,18 +316,23 @@ class ResultShuttle():
 
     def add_result_proof_at_replica_id(self,replica_id,cached_result):
         self.result_proofs[replica_id] = cached_result
-        if self.client_id is not None and self.request_id is not None:
-            print("replica_id"+str(replica_id)+"old_client_id "+str(self.client_id)+" old_request_id"+str(self.request_id))
-        self.client_id = cached_result.get_client_id()
-        self.request_id = cached_result.get_request_id()
-        self.result = cached_result.get_result()
-        print("replica_id"+str(replica_id)+"new_client_id "+str(self.client_id)+" new_request_id"+str(self.request_id))
+        #if self.client_id is not None and self.request_id is not None:
+        #    
+        if cached_result is not None:
+            #print("inside add_result_proof_at_replica_id: replica_id"+str(replica_id)+"old_client_id "+str(self.client_id)+" old_request_id"+str(self.request_id)+"\n")
+            self.client_id = cached_result.get_client_id()
+            self.request_id = cached_result.get_request_id()
+            self.result = cached_result.get_result()
+            #print("inside add_result_proof_at_replica_id: replica_id"+str(replica_id)+"new_client_id "+str(self.client_id)+" new_request_id"+str(self.request_id) +" with result "+str(self.result)+"\n")
     
     def get_result_proof_of_replica(self,replica_id):
         return self.result_proofs[replica_id]
 
     def get_replica_ids_from_shuttle(self):
         return self.result_proofs.keys()
+
+    def get_count_of_replica_ids_from_shuttle(self):
+        return len(self.result_proofs)
 
     def get_client_id(self):
         return self.client_id
