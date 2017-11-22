@@ -135,7 +135,7 @@ class Replica(process):
         self.send_acks_to_replicas = {}
         self.retransmit_acknowledged = 0
         self.current_checkpoint_proof = None
-        self.check_point_id = 0
+        self.checkpoint_id = 0
         self.last_served_request_for_a_client = {}
         self.caughtup_message = None
         self.pending_drop_result_stmts_failure_at_tail_replica = False
@@ -274,7 +274,10 @@ class Replica(process):
 
     def get_timeout(timeout_key):
         #client_timeout = 3000
-        return config.get(timeout_key)
+        timeout_val = config.get(timeout_key)
+        timeout_val = int(timeout_val)
+        timeout_val = timeout_val/1000
+        return timeout_val
 
     def get_check_pointing_interval(check_point_key):
         #client_timeout = 3000
@@ -461,7 +464,7 @@ class Replica(process):
         malicious_value = 'a'
         self.data_object[malicious_key] = malicious_value
        
-    def drop_failure(msg,msg_id,special_msg):
+    def drop_failure(msg,msg_id,special_msg=""):
         self.pending_drop_stmts = self.pending_drop_stmts - 1
         logger.warning("drop_failure: dropping the incoming msg:%s,with %s_id:%s "+special_msg,str(msg),str(msg),str(msg_id))
 
@@ -544,7 +547,7 @@ class Replica(process):
         self.replica_state = self.Immutable#changing the replica status to immutable
         logger.info("wedged_statement_from_replica: sending wedge statement to olympus")
         replica_history = copy.deepcopy(self.history)
-        wedged_statement = WedgedStatement(replica_history,current_checkpoint_proof,check_point_id)
+        wedged_statement = WedgedStatement(replica_history,current_checkpoint_proof,self.checkpoint_id)
 
         #next_replica = get_next_replica()
         if self.pending_truncate_history_statements > 0: 
@@ -578,10 +581,10 @@ class Replica(process):
         self.current_checkpoint_proof = copy.deepcopy(completed_checkpoint_proof)
         
             
-        completed_checkpoint_failures = get_pending_failures_if_exists(None, checkpoint_identifier, "checkpoint")
+        completed_checkpoint_failures = get_pending_failures_if_exists(None, checkpoint_identifier, "completed_checkpoint")
         for completed_checkpoint_failure in completed_checkpoint_failures:
             if completed_checkpoint_failure is not None:
-                logger.info("Trigger Exists: in  replica=%s, trigger_name=checkpoint with checkpoint_id=%s, failure_to_be_executed=%s", str(
+                logger.info("Trigger Exists: in  replica=%s, trigger_name=completed_checkpoint with completed_checkpoint_id=%s, failure_to_be_executed=%s", str(
                     replica_id), str(checkpoint_identifier), str(completed_checkpoint_failure["failure_name"]))
                 update_failure_count(str(completed_checkpoint_failure["failure_name"]),completed_checkpoint_failure["failure_param"])
 
@@ -603,8 +606,10 @@ class Replica(process):
 
 
         replica_history = self.history
+        slot_ids = replica_history.get_next_slot_ids(checkpoint_identifier,checkpointing_interval)
         #order_proofs = replica_history.get_order_proofs()
-        for slot_id in range(checkpointing_interval-1,-1,-1):
+        for slot_id in slot_ids:
+            print(" removing order_proof at slot_id "+str(slot_id)+" replica_id "+str(replica_id))
             replica_history.remove_order_proof_at_slot(slot_id)
 
         if self.pending_drop_checkpoint_stmts > 0:
@@ -636,8 +641,9 @@ class Replica(process):
 
     def receive(msg=('initiate_checkpointing',checkpoint_proof,checkpoint_identifier),from_ = prev_replica):
         await((self.current_slot_number) % checkpointing_interval == 0)
-
+        print("performing checkpoining checkpoint_identifier "+str(checkpoint_identifier))
         checkpoint_failures = get_pending_failures_if_exists(None, checkpoint_identifier, "checkpoint")
+        print("performing checkpoining checkpoint_identifier "+str(checkpoint_identifier)+" after getting pending failures")
         for checkpoint_failure in checkpoint_failures:
             if checkpoint_failure is not None:
                 logger.info("Trigger Exists: in  replica=%s, trigger_name=checkpoint with checkpoint_id=%s, failure_to_be_executed=%s", str(
@@ -651,6 +657,7 @@ class Replica(process):
                     increment_slot_number_failure()
 
                 if self.pending_drop_stmts > 0:
+                    print("Executing drop_failure at replica_id:"+str(replica_id)+",checkpoint_identifier:"+str(checkpoint_identifier))
                     drop_failure("checkpoint_failure",checkpoint_identifier)
                     return
 
@@ -660,11 +667,12 @@ class Replica(process):
                 if self.pending_sleep_statements > 0:
                     sleep_failure()
 
-
-        hash_of_running_state,signed_hash_of_running_state = get_check_point_proof()
+        print("performing checkpoining checkpoint_identifier "+str(checkpoint_identifier)+" after processing pending failures")
+        hash_of_running_state,signed_hash_of_running_state = get_checkpoint_proof(checkpoint_identifier,checkpointing_interval)
         checkpoint_proof.add_to_check_point_proof(hash_of_running_state,signed_hash_of_running_state,replica_id)
         next_replica = get_next_replica()
 
+        print("performing checkpoining checkpoint_identifier "+str(checkpoint_identifier)+" ready to send to next replica")
 
         if self.is_head_replica is False: 
             if validate_check_point_proofs(checkpoint_proof,checkpoint_identifier) is False:
@@ -673,16 +681,19 @@ class Replica(process):
         if self.is_tail_replica is False:
             send(('initiate_checkpointing',checkpoint_proof,checkpoint_identifier), to=next_replica)
         else:
-            pass
+            #send checkpointing completed status to replica for
+            #send(('checkpointing_completed',),to=head_replica)
             send(('truncate_history_till_check_point',checkpoint_proof,checkpoint_identifier), to=self)
 
-    def get_check_point_proof():
+    def get_checkpoint_proof(checkpoint_identifier,checkpointing_interval):
         replica_history = self.history
         running_state = ""
         order_proofs = replica_history.get_order_proofs()
-        #print("order_proofs "+str(order_proofs))
-        for i in range(0,checkpointing_interval):
-            order_proof_for_each_slot = order_proofs[i]
+        slot_ids = replica_history.get_next_slot_ids(checkpoint_identifier,checkpointing_interval)
+
+        print("performing get_checkpoint_proof with slot_ids "+str(slot_ids)+" with checkpoint_identifier"+str(checkpoint_identifier)+" and checkpointing_interval "+str(checkpointing_interval))
+        for slot_id in slot_ids:
+            order_proof_for_each_slot = replica_history.get_order_proof_at_slot(slot_id)
             #print("order_proof_for_each_slot "+str(order_proof_for_each_slot))
             order_statements = order_proof_for_each_slot.get_order_statements_from_order_proof()
             #print("order_statements "+str(order_statements))
@@ -693,6 +704,11 @@ class Replica(process):
         #print("hash_of_running_state"+str(hash_of_running_state))
         #print(signed_hash_of_running_state+str(signed_hash_of_running_state))
         return hash_of_running_state,signed_hash_of_running_state
+
+    # def receive(msg=('checkpointing_completed',),from_=tail_replica):
+    #     print("process terminated replica_id"+str(replica_id))
+    #     self.last_check_pointing_successfully completed
+
 
     def receive(msg=('terminate_replica',),from_=olympus):
         print("process terminated replica_id"+str(replica_id))
@@ -888,12 +904,14 @@ class Replica(process):
 
                 if self.current_slot_number % checkpointing_interval == 0:
                     #pass
-                    #hash_of_running_state,signed_hash_of_running_state = get_check_point_proof()
-                    check_point_proof = CheckPointProof(check_point_id,current_slot_number - checkpointing_interval, current_slot_number - 1)
+                    #print()
+                    #hash_of_running_state,signed_hash_of_running_state = get_checkpoint_proof()
+                    checkpoint_proof = CheckPointProof(checkpoint_id,current_slot_number - checkpointing_interval, current_slot_number - 1)
                     #todo await for prev checkpoint before sendinf request for next check point
                     #check_point_proof.add_to_check_point_proof(hash_of_running_state,signed_hash_of_running_state)
                     #next_replica = get_next_replica()
-                    #send(('initiate_checkpointing',check_point_proof,check_point_id), to=self)
+                    send(('initiate_checkpointing',checkpoint_proof,checkpoint_id), to=self)
+                    self.checkpoint_id = self.checkpoint_id + 1
 
             else:
 
@@ -1125,10 +1143,10 @@ class Replica(process):
 
     def receive(msg=('get_running_state',running_state_id),from_=olympus):
         logger.info("get_running_state: from replica_id=%s", str(replica_id))  
-        running_state_failures = get_pending_failures_if_exists(None, running_state_id, "checkpoint")
+        running_state_failures = get_pending_failures_if_exists(None, running_state_id, "get_running_state")
         for running_state_failure in running_state_failures:
             if running_state_failure is not None:
-                logger.info("Trigger Exists: in  replica=%s, trigger_name=checkpoint with running_state_id=%s, failure_to_be_executed=%s", str(
+                logger.info("Trigger Exists: in  replica=%s, trigger_name=get_running_state with running_state_id=%s, failure_to_be_executed=%s", str(
                     replica_id), str(running_state_id), str(running_state_failure["failure_name"]))
                 update_failure_count(str(running_state_failure["failure_name"]),running_state_failure["failure_param"])
 
@@ -1169,7 +1187,7 @@ class Replica(process):
         catchup_msg_failures = get_pending_failures_if_exists(None, catchup_msg_identifier, "catch_up")
         for catchup_msg_failure in catchup_msg_failures:
             if catchup_msg_failure is not None:
-                logger.info("Trigger Exists: in  replica=%s, trigger_name=checkpoint with catchup_msg_identifier=%s, failure_to_be_executed=%s", str(
+                logger.info("Trigger Exists: in  replica=%s, trigger_name=catch_up with catchup_msg_identifier=%s, failure_to_be_executed=%s", str(
                     replica_id), str(catchup_msg_identifier), str(catchup_msg_failure["failure_name"]))
                 update_failure_count(str(catchup_msg_failure["failure_name"]),catchup_msg_failure["failure_param"])
 
@@ -1345,7 +1363,7 @@ class Replica(process):
             client_id, request_id + retransmit_id, "result_shuttle")
         for result_shuttle_failure in result_shuttle_failures:
             if result_shuttle_failure is not None:
-                logger.info("Trigger Exists:  in  replica=%s, trigger_name=client_request with client_id=%s, request_id=%s, failure_to_be_executed=%s", str(
+                logger.info("Trigger Exists:  in  replica=%s, trigger_name=result_shuttle with client_id=%s, request_id=%s, failure_to_be_executed=%s", str(
                     replica_id), str(client_id), str(request_id), str(result_shuttle_failure["failure_name"]))
                 update_failure_count(str(result_shuttle_failure["failure_name"]),result_shuttle_failure["failure_param"])
 

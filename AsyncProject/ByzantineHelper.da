@@ -251,10 +251,15 @@ class CheckPointProof():
 class History():
 
     def __init__(self):
+        self.last_inserted_slot_id = None
         self.order_proof_for_each_slot = {}
+        self.slot_ids_cache = []
 
     def add_order_proof_to_history(self, slot_id,order_proof):
+
+        self.last_inserted_slot_id = slot_id
         self.order_proof_for_each_slot[slot_id] = order_proof
+        self.slot_ids_cache.append(slot_id)
 
     def get_order_proofs(self):
         return self.order_proof_for_each_slot
@@ -267,13 +272,24 @@ class History():
         if slot_id in self.order_proof_for_each_slot:
             return self.order_proof_for_each_slot[slot_id]
         else:
+            print("**** get_order_proof_at_slot: check why it is getting called get_order_proof_at_slot***")
             return None
+
+    def get_slots(self):
+        return self.slot_ids_cache
 
     def get_count_of_slots(self):
         return len(self.order_proof_for_each_slot)
 
     def omit_last_entry_of_history(self):
-        del self.order_proof_for_each_slot[self.get_count_of_slots()]
+        del self.order_proof_for_each_slot[self.last_inserted_slot_id]
+
+    def get_next_slot_ids(self,checkpoint_identifier,checkpointing_interval):
+        slot_ids = self.get_slots()
+        left_range = checkpoint_identifier*checkpointing_interval
+        right_range = left_range + checkpointing_interval
+        req_list = slot_ids[left_range:right_range]
+        return req_list
 
 
 class CachedResult():

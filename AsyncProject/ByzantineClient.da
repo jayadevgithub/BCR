@@ -191,7 +191,7 @@ class Client(process):
 
         count = get_count_valid_result_proofs(result_shuttle)
 
-        logger.info("seq=%s, result_from_parent_process=%s, result=%s ,result_proof_match_count=%s,actual_count=%s", str(
+        logger.info("seq=%s, result_from_parent_process='%s', result='%s; ,result_proof_match_count=%s,actual_count=%s", str(
             self.global_seq_id), str(self.result_from_parent_process), str(result),str(count),str((2*T+1)))
 
 
@@ -221,7 +221,7 @@ class Client(process):
             self.request_id = self.request_id + 1
             self.temp_count = self.temp_count +1
             if valid_response is True:
-                print("verified_the_result "+str(result)+" at client_id "+str(client_id) +" request_id is "+str(request_id-1))
+                print("verified_the_result '"+str(result)+"' at client_id "+str(client_id) +" request_id is "+str(request_id-1))
                 #print(" verified the result request_id:"+str(request_id)+" client_id")
                 print("sending next op")
                 if self.temp_count < self.operation_count:
@@ -361,6 +361,8 @@ class Client(process):
         if workload is None:
             return {}
         self.client_timeout = config.get('client_timeout')
+        self.client_timeout = int(self.client_timeout)
+        self.client_timeout = self.client_timeout/1000
         #print("client_timeout "+str(client_timeout))
         logger.info("workload=%s", str(workload))
         if "pseudorandom" in workload:
