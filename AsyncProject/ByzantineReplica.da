@@ -442,6 +442,7 @@ class Replica(process):
             print("sleep_failure: replica_id: "+str(replica_id)+"sleeping for a period of "+str(sleep_period)+" milli seconds ")
             logger.warning(" sleep_failure: replica_id:%s sleeping for a period of %s milli seconds ",str(replica_id),str(sleep_period))
             self.pending_sleep_statements = self.pending_sleep_statements - 1
+            sleep_period = int(sleep_period)
             sleep_period = sleep_period/1000
             current_time = time.time()
             time.sleep(sleep_period)
@@ -565,7 +566,7 @@ class Replica(process):
         #print(str(cache_key in send_acks_to_replicas)+" replica_id "+str(replica_id) + str(send_acks_to_replicas))
 
     def receive(msg=('acknowledge_retransmission',),from_=tail_replica):
-        logger.info("acknowledge_retransmission: acknowledged at replica_id",str(replica_id))
+        logger.info("acknowledge_retransmission: acknowledged at replica_id:%s",str(replica_id))
         self.retransmit_acknowledged = 2
         #print(str(cache_key in send_acks_to_replicas)+" replica_id "+str(replica_id) + str(send_acks_to_replicas))
 

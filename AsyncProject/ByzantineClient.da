@@ -210,6 +210,7 @@ class Client(process):
     def receive(msg=('result_shuttle', result_shuttle, result,replica_id,response_request_id), from_=tail_replica):
         logger.info("received: 'result_shuttle' FROM replica:%s for request_id:%s WITH result=%s",str(replica_id),str(response_request_id), str(result))
         if is_verified_result(client_id,response_request_id) is False:
+            logger.info("validating 'result_shuttle' FROM replica:%s for request_id:%s WITH result=%s",str(replica_id),str(response_request_id), str(result))
 
             valid_response = process_result_shuttle(result,response_request_id,result_shuttle)
                 #output('verified result')
@@ -225,7 +226,8 @@ class Client(process):
                 print("sending next op")
                 if self.temp_count < self.operation_count:
                     handle_operation()
-
+        else:
+            logger.info("result_shuttle:already processed 'result_shuttle' FROM replica:%s for request_id:%s WITH result=%s",str(replica_id),str(response_request_id), str(result))
             
 
     def receive(msg=('parent_performed_operation', globalseqid), from_=parent_process):
@@ -306,6 +308,7 @@ class Client(process):
                 logger.error("retransmitted_request:provable case of misbehaviour client_id:%s has not received response for request_id:%s,retransmit_id:%s",str(client_id),str(request_id),str(retransmit_id))
                 output("retransmitted_request:error provable case of misbehaviour for client_id " +
                        str(client_id) + " request_id " + str(request_id))
+                print("failed failed failed")
                 #waiting_for_new_configuration = 1
                 #await(waiting_for_new_configuration == 2)
 
