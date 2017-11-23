@@ -128,24 +128,25 @@ class Client(process):
         #output(str(client_id) + 'is successfully registered yoo ')
 
     def receive(msg=('last_served_request',result_shuttle), from_=olympus):
-        logger.info("received: 'last_served_request' shuttle FROM Olympus WITH result "+str(result_shuttle.get_result()))
-        if result_shuttle.get_result() is not None:
+        logger.info("received: 'last_served_request' shuttle FROM Olympus WITH result:%s and last_served_request_id:%s ,actual_id:%s",str(result_shuttle.get_result()),str(result_shuttle.get_request_id()),str(self.request_id))
+        if result_shuttle.get_result() is not None and result_shuttle.get_request_id() == self.request_id :
             #print("tyrion lannister")
             #count  = get_count_valid_result_proofs(result_shuttle)
             #print("last_served_request: client_id "+str(result_shuttle.get_client_id())+" request_id "+str(result_shuttle.get_request_id()))
+            
             response_request_id = result_shuttle.get_request_id()
             result = result_shuttle.get_result()
             process_result_shuttle(result,response_request_id,result_shuttle)
             get_active_configuration_from_olympus()
             await(self.received_active_config_at_client == 1)
-            print("done received_active_config_at_client after reconfiguration")
+            logger.info("last_served_request:done received_active_config_at_client after reconfiguration")
             self.request_id = self.request_id + 1
             self.temp_count = self.temp_count +1
             handle_operation()
         else:
             get_active_configuration_from_olympus()
             await(self.received_active_config_at_client == 1)
-            print("done received_active_config_at_client after reconfiguration")
+            logger.info("last_served_request:done received_active_config_at_client after reconfiguration")
             handle_operation()
 
         #self.waiting_for_new_configuration = 2
@@ -215,17 +216,16 @@ class Client(process):
             valid_response = process_result_shuttle(result,response_request_id,result_shuttle)
                 #output('verified result')
                 #logger.info("sent: 'verified_result' TO self")
-            self.switch = 2
-            self.retransmit_switch = 2
-
-            self.request_id = self.request_id + 1
-            self.temp_count = self.temp_count +1
             if valid_response is True:
-                print("verified_the_result '"+str(result)+"' at client_id "+str(client_id) +" request_id is "+str(request_id-1))
+                self.switch = 2
+                self.retransmit_switch = 2
+
+                self.request_id = self.request_id + 1
+                self.temp_count = self.temp_count +1
+
+                logger.info("verified_the_result '"+str(result)+"' at client_id "+str(client_id) +" request_id is "+str(request_id-1))
                 #print(" verified the result request_id:"+str(request_id)+" client_id")
-                print("sending next op")
-                if self.temp_count < self.operation_count:
-                    handle_operation()
+                logger.info("sending next op")
         else:
             logger.info("result_shuttle:already processed 'result_shuttle' FROM replica:%s for request_id:%s WITH result=%s",str(replica_id),str(response_request_id), str(result))
             
@@ -276,7 +276,7 @@ class Client(process):
         self.switch = 1
         self.retransmit_switch = 1
         client_request = ClientRequest(client_id,request_id,retransmit_id,operation,self.private_key,self)
-        print(" at client client_request client_request hash :"+str(client_request))
+        #print(" at client client_request client_request hash :"+str(client_request))
         logger.info("sent: 'perform_operation' WITH client_id=%s, request_id=%s,operation=%s TO head_replica", str(
             client_id), str(request_id),str(operation))
 
@@ -285,12 +285,16 @@ class Client(process):
         logger.info("sent: 'parent_verify' to parent_process")
         #print("client_timeout "+str(client_timeout))
         if await(self.switch == 2):
-            logger.info("operation:%s completed done by the client:%s", str(
+            logger.info("handle_operation:operation:%s completed done by the client:%s", str(
                 operation), str(client_id))
+
+            if self.temp_count < self.operation_count:
+                handle_operation()
+
             #self.request_id = self.request_id + 1
             #output(" got the iddd for client_id "+str(client_id)+" for request_id "+str(request_id) + " gs "+str(global_seq_id) )
         elif timeout(self.client_timeout):
-            output("TIMEOUT occurred, retransmitting request to all replicas")
+            logger.info("TIMEOUT occurred, retransmitting request to all replicas")
             logger.warning(
                 "TIMEOUT occurred, retransmitting request to all replicas")
             self.retransmit_id = self.retransmit_id + 1
@@ -308,7 +312,7 @@ class Client(process):
                 logger.error("retransmitted_request:provable case of misbehaviour client_id:%s has not received response for request_id:%s,retransmit_id:%s",str(client_id),str(request_id),str(retransmit_id))
                 output("retransmitted_request:error provable case of misbehaviour for client_id " +
                        str(client_id) + " request_id " + str(request_id))
-                print("failed failed failed")
+                logger.info("failed failed failed")
                 #waiting_for_new_configuration = 1
                 #await(waiting_for_new_configuration == 2)
 
@@ -456,7 +460,14 @@ def get_config_info(config_file_name):
 
 
 def main():
-    config_file_name = 'simple_config.txt'
+    # config_file_name = 'failure_change_operation.txt'
+    config_file_name = 'failure_change_result_at_tail_replica.txt'
+    # config_file_name = 'failure_change_operation.txt'
+    # config_file_name = 'failure_change_operation.txt'
+    # config_file_name = 'failure_change_operation.txt'
+    # config_file_name = 'failure_change_operation.txt'
+    # config_file_name = 'failure_change_operation.txt'
+    # config_file_name = 'failure_change_operation.txt'
     logger = logging.getLogger("Main Module")
     logger.setLevel(logging.INFO)
     # logger.addHandler(handler)

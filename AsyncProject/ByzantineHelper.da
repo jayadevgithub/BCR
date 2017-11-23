@@ -251,13 +251,21 @@ class CheckPointProof():
 class History():
 
     def __init__(self):
-        self.last_inserted_slot_id = None
+        #self.last_inserted_slot_id = None
         self.order_proof_for_each_slot = {}
         self.slot_ids_cache = []
 
+
+    def get_maximum_slot_id(self):
+        if len(self.slot_ids_cache) is 0:
+            return 0
+        else:
+            return self.slot_ids_cache[len(self.slot_ids_cache)-1]
+
+
     def add_order_proof_to_history(self, slot_id,order_proof):
 
-        self.last_inserted_slot_id = slot_id
+        #self.last_inserted_slot_id = slot_id
         self.order_proof_for_each_slot[slot_id] = order_proof
         self.slot_ids_cache.append(slot_id)
 
@@ -282,7 +290,11 @@ class History():
         return len(self.order_proof_for_each_slot)
 
     def omit_last_entry_of_history(self):
-        del self.order_proof_for_each_slot[self.last_inserted_slot_id]
+        last_slot_id = self.get_maximum_slot_id()
+        print(" last_slot_id is "+str(last_slot_id) +" order_proof_for_each_slot "+str(self.order_proof_for_each_slot))
+        if last_slot_id is not None:
+            del self.order_proof_for_each_slot[last_slot_id]
+            del self.slot_ids_cache[len(self.slot_ids_cache)-1]
 
     def get_next_slot_ids(self,checkpoint_identifier,checkpointing_interval):
         slot_ids = self.get_slots()
@@ -298,6 +310,9 @@ class CachedResult():
         self.result = result
         self.result_shuttle = result_shuttle
 
+
+#wedged statement contains history of the replica
+#and also the last saved completed checkpointproof at that replica
 class WedgedStatement():
 
     def __init__(self,history,check_point_proof,checkpoint_identifier):
@@ -314,8 +329,8 @@ class WedgedStatement():
     def get_checkpoint_id(self):
         return self.checkpoint_id
 
-    def get_count_of_slots(self):
-        return self.history.get_count_of_slots()
+    def get_maximum_slot_id(self):
+        return self.history.get_maximum_slot_id()
 
     def get_order_proof_at_slot(self,slot_id):
         return self.history.get_order_proof_at_slot(slot_id)
