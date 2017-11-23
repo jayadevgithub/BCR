@@ -351,12 +351,15 @@ class Replica(process):
             return replica_set[replica_id - 1]
 
     def validate_result_shuttle(result_shuttle, client_id, request_id, replica_id):
-        logger.info("validating result shuttle for client_id:%s,request_id:%s,replica_id:%s",str(client_id),str(request_id),str(replica_id))
+        logger.info("validate_result_shuttle:validating result shuttle for client_id:%s,request_id:%s,replica_id:%s",str(client_id),str(request_id),str(replica_id))
         curr_order_proof = result_shuttle.get_order_proof_from_shuttle()
         #result_proofs = result_shuttle.get_result_proofs_from_shuttle()
         count_of_result_proofs = result_shuttle.get_count_of_result_proofs_in_shuttle()
         #output("len(result_proofs):, "+str(len(result_proofs)) +" client_id "+str(client_id)+" request_id "+str(request_id) +" replica_id "+str(replica_id))
         #output("len(replica_set): "+str(len(replica_set)) +" client_id "+str(client_id)+" request_id "+str(request_id) +" replica_id "+str(replica_id))
+
+        logger.info("validate_result_shuttle: count_of_result_proofs "+str(count_of_result_proofs)+" len(replica_set): "+str(len(replica_set)) +" client_id "+str(client_id)+" request_id "+str(request_id) +" replica_id "+str(replica_id))
+
         if count_of_result_proofs != len(replica_set):
             send(('reconfigure_request',replica_id), to=olympus)
             logger.error("calling reconfig provable case of misbehaviour detected for client_id:%s,request_id:%s,replica_id:%s result proofs are invalid-count",
@@ -520,7 +523,9 @@ class Replica(process):
 
         self.pending_drop_result_stmts = self.pending_drop_result_stmts - 1
         #drop_result_proof_trigger = True
+        logger.warning("drop_result_statement_of_head_replica_failure: before dropping result_shuttle count_of_result_proofs "+str(result_shuttle.get_count_of_result_proofs_in_shuttle()))
         result_shuttle.drop_result_proof_from_shuttle(head_replica_id)
+        logger.warning("drop_result_statement_of_head_replica_failure: after dropping result_shuttle count_of_result_proofs "+str(result_shuttle.get_count_of_result_proofs_in_shuttle()))
 
     def receive(msg=('wedged_request',wedge_request_id),from_=olympus):
         logger.info("wedged_request:inside wedged_request at "+str(replica_id))
@@ -1024,10 +1029,8 @@ class Replica(process):
                     if self.replica_state == self.Immutable:
                         return                  
 
-                    cloned_result_shuttle = copy.deepcopy(result_shuttle)
-                    send(('cache_result_shuttle', client_id, request_id,
-                          retransmit_id, cloned_result_shuttle, result), to=self)
-
+                    #cloned_result_shuttle = copy.deepcopy(result_shuttle)
+  
                     if self.pending_change_results > 0:
                         self.pending_change_result_failure_at_tail_replica = True 
                         change_result_in_result_shuttle_failure(client_id,request_id,result_shuttle)
@@ -1036,6 +1039,8 @@ class Replica(process):
                         self.pending_drop_result_stmts_failure_at_tail_replica = True
                         drop_result_statement_of_head_replica_failure(client_id,request_id,result_shuttle)
 
+
+                    send(('cache_result_shuttle', client_id, request_id,retransmit_id, result_shuttle, result), to=self)
 
                     #testing retransmit case when the request is processed but result didnot reach client
                     #and client got timedout cached result will be sent directly, requests wont be sent 
@@ -2311,7 +2316,7 @@ class Olympus(process):
                     logger.info("get_valid_quorum_of_replicas:inside comparing"+str(max_order_proof_replica_index)+" with  replica_index "+str(replica_index)+" with catchup length"+str(catchup_length))
 
                     if catchup_length > 0:
-                        for slot_id in range(curr_order_proofs_size,max_count_of_slots+1):
+                        for slot_id in range(curr_order_proofs_size+1,max_count_of_slots+1):
                             max_order_proof = max_wedged_statement.get_order_proof_at_slot(slot_id)
                             catchup_order_stmt = max_order_proof.get_order_statement_of_replica(max_order_proof_replica_index)
                             catchup_stmt = CatchupStatement(catchup_order_stmt)
@@ -2839,7 +2844,6 @@ class Client(process):
 
             if self.temp_count < self.operation_count:
                 handle_operation()
-
             #self.request_id = self.request_id + 1
             #output(" got the iddd for client_id "+str(client_id)+" for request_id "+str(request_id) + " gs "+str(global_seq_id) )
         elif timeout(self.client_timeout):
@@ -3070,13 +3074,14 @@ class ParentProcess(process):
         self.global_result_of_operations = {}
         self.global_seq_id = 0
         self.client_request_map = {}
+        self.request_issued_by = {}
 
 
     def receive(msg=('get_result_from_parent_process', globalseqid), from_=client):
         logger.info(
             "received: 'get_result_from_parent_process' FROM client, global_sequence_id=%s", str(globalseqid))
         result = self.global_result_of_operations[str(globalseqid)]
-        logger.info("presult=%s", str(result))
+        logger.info("presult="+ str(result) + " client_id:"+str(request_issued_by[str(globalseqid)]))
         send(('parent_sent_result', result), to=client)
         logger.info("sent: 'parent_sent_result' TO client, with result=%s", str(result))
 
@@ -3086,15 +3091,16 @@ class ParentProcess(process):
             logger.info("received: 'parent_perform_operation' FROM client=%s, operation=%s",str(client_id), str(operation))
             result = process_operation(operation)
             global_result_of_operations[str(global_seq_id)] = result
+            request_issued_by[str(global_seq_id)] = client_id
+            client_request_map[cache_key] = global_seq_id
             self.global_seq_id += 1
             send(('parent_performed_operation', global_seq_id - 1), to=client)
             logger.info("sent: 'parent_performed_operation to client_id:%s', operation=%s, result=%s", str(client_id),str(
                 operation), str(result))
             #logger.info("global result=%s", str(global_result_of_operations))
-            client_request_map[cache_key] = True
         else:
             logger.info("received: duplicate 'parent_perform_operation' FROM client=%s, operation=%s with same request_id=%s",str(client_id), str(operation), str(request_id))
-            send(('parent_performed_operation', global_seq_id - 1), to=client)
+            send(('parent_performed_operation', client_request_map[cache_key]), to=client)
 
     def process_operation(operation):
         logger.info(
