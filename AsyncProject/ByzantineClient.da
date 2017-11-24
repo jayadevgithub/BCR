@@ -54,8 +54,8 @@ class Client(process):
     def is_verified_result(client_id, request_id):
         logger.info("is_verified_result: client_id:%s,request_id:%s ",str(client_id),str(request_id))
         cache_key = '00000'+str(client_id)+'11111' + str(request_id)
-        if int(client_id) == 1 and int(request_id) == 110:
-            print("returning for key "+str(cache_key) +" value "+ str(cache_key in verified_result))
+        # if int(client_id) == 1 and int(request_id) == 110:
+        #     print("returning for key "+str(cache_key) +" value "+ str(cache_key in verified_result))
 
         if cache_key in verified_result:
             return True
@@ -86,7 +86,7 @@ class Client(process):
         return dgst
 
     def decode_hash_and_verify(hash_digest, signed_message, process_public_key):
-        #print("inside decode_hash_and_verify")
+        #logger.log("inside decode_hash_and_verify")
         try:
             new_digest = process_public_key.verify(signed_message)
             if sodium_memcmp(hash_digest, new_digest):
@@ -159,6 +159,7 @@ class Client(process):
         self.parent_switch = 2
 
     def get_count_valid_result_proofs(result_shuttle):
+        logger.info("inside 'get_count_valid_result_proofs'")
         count = 0
         replica_ids = result_shuttle.get_replica_ids_from_shuttle()
         #print("replica_ids "+str(replica_ids))
@@ -239,11 +240,13 @@ class Client(process):
         self.parent_request_switch = 2
 
     def get_active_configuration_from_olympus():
+        logger.info(" get_active_configuration_from_olympus: ")
         self.received_active_config_at_client = 0
         send(('get_current_active_configuration_from_olympus',client_id), to=olympus)
         logger.info("sent: 'get_current_active_configuration_from_olympus' TO Olympus")
 
     def register_client_and_get_active_configuration_from_olympus():
+        logger.info(" register_client_and_get_active_configuration_from_olympus: ")
         send(('register_client_at_olympus', public_key, client_id), to=olympus)
         logger.info("sent: 'register_client_at_olympus' WITH client_id=%s TO Olympus", str(client_id))
         await(some(received(('client_registered_at_olympus',_), from_=olympus)))
@@ -267,7 +270,7 @@ class Client(process):
             operation = self.last_executed_operation
         self.last_operation_status = "PENDING"
         self.last_executed_operation = operation
-        print("operation is "+str(operation) + " at client_id "+str(client_id) +" request_id is "+str(request_id))
+        #print("operation is "+str(operation) + " at client_id "+str(client_id) +" request_id is "+str(request_id))
 
         send(('parent_perform_operation', client_id,request_id, operation), to=parent_process)
         self.parent_request_switch = 1
@@ -309,8 +312,8 @@ class Client(process):
                     operation), str(client_id))
             elif timeout(self.client_timeout):
                 logger.error("retransmitted_request:provable case of misbehaviour client_id:%s has not received response for request_id:%s,retransmit_id:%s",str(client_id),str(request_id),str(retransmit_id))
-                output("retransmitted_request:error provable case of misbehaviour for client_id " +
-                       str(client_id) + " request_id " + str(request_id))
+                #output("retransmitted_request:error provable case of misbehaviour for client_id " +
+                #       str(client_id) + " request_id " + str(request_id))
                 logger.info("failed failed failed")
                 #waiting_for_new_configuration = 1
                 #await(waiting_for_new_configuration == 2)
@@ -470,7 +473,7 @@ def main():
     #config_file_name = 'failure_shuttle_drop.txt'
     #config_file_name = 'failure_running_state.txt'
     #config_file_name = 'failure_catchup_message.txt'
-    config_file_name = 'failure_shuttle_drop.txt'
+    config_file_name = 'testcase_checkpointing.txt'
     
     # config_file_name = 'failure_change_operation.txt'
     # config_file_name = 'failure_change_operation.txt'
