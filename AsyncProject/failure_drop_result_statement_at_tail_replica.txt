@@ -2,7 +2,7 @@
 # test case name.  can be used to trigger test case specific code in client,
 # e.g., to generate special request sequences or validate intermediate or
 # final values of object state. [2017-09-12: added this item]
-test_case_name = test1
+test_case_name = failure_drop_result_statement_at_tail_replica
 
 # number of failures to tolerate.  number of replicas is 2t+1.
 t = 1
@@ -41,7 +41,3 @@ workload[1] = put('movie','star'); append('movie',' wars'); get('movie'); append
 # failure scenario are failure-free.
 
 failures[0,2] = shuttle(1,1),drop_result_stmt()
-#failures[0,0] = shuttle(0,2),drop_result_stmt()
-#failures[0,0] = client_request(0,1), change_operation()
-#failures[0,1] = forwarded_request(1,1), change_operation()
-#failures[0,0] = forwarded_request(0,1), change_operation()
