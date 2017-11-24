@@ -2,8 +2,13 @@ from subprocess import call
 import sys
 #open('BCR.da', 'w').close()
 #subprocess.check_output(['ls','-l']) #all that is technically needed...
-distalgo_compiler_path = "/Users/sai/Downloads/pyDistAlgo-1.0.11b1/bin/dar"
-config_file_name = "config.txt"
+distalgo_compiler_path = "/Users/sai/Downloads/pyDistAlgo-1.0.11/bin/dar"
+#config_file_name = "failure_change_operation.txt"
+#config_file_name = "failure_increment_slot.txt"
+#config_file_name = "failure_drop_result_statement_at_tail_replica.txt"
+#config_file_name = "failure_shuttle_drop.txt"
+config_file_name = "failure_crash.txt"
+
 
 def get_config_info(config_file_name):
     config = {}
@@ -19,9 +24,6 @@ def get_config_info(config_file_name):
     return config
 
 config = get_config_info(config_file_name)
-
-
-
 
 
 

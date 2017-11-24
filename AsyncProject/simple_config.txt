@@ -5,18 +5,18 @@
 test_case_name = test1
 
 # number of failures to tolerate.  number of replicas is 2t+1.
-t = 1
+t = 2
 # number of clients
 num_client = 1
 # client timeout, in milliseconds.  if timer expires, resend request 
 # to all replicas, as described in section 3.3.
-client_timeout = 3
+client_timeout = 3000
 # timeout, in milliseconds, for head and non-head servers, respectively:
 # if timer expires, send reconfiguration request to Olympus, as described 
 # in section 3.3.
-head_timeout = 100
-nonhead_timeout = 100
-checkpt_interval = 100
+head_timeout = 3000
+nonhead_timeout = 3000
+checkpt_interval = 2
 # MAPPING OF PROCESSES TO HOSTS
 # to simplify changing the hosts, we first specify a semicolon-separated
 # list of hosts, and then use 0-based indices into that list to specify the
@@ -31,7 +31,7 @@ replica_hosts = 0; 1; 2
 
 # CLIENT WORKLOAD
 
-workload[0] = put('jedi','luke skywalker); get('jedi'); get('jedi'); get('jedi'); get('jedi')
+workload[0] = put('jedi','luke skywalker); get('jedi'); append('jedi',' ultimate'); get('jedi');   put('movie','star'); append('jedi',' edition'); append('movie',' wars'); get('movie'); get('jedi'); append('jedi',' 2'); get('jedi')
 workload[1] = put('movie','star'); append('movie',' wars'); get('movie')
 workload[2] = pseudorandom(833,10)
 workload[3] = put('movie','star'); append('movie',' wars'); get('movie')
@@ -43,8 +43,10 @@ workload[3] = put('movie','star'); append('movie',' wars'); get('movie')
 # position in the chain, starting from 0.  replicas without a specified
 # failure scenario are failure-free.
 
-failures[0,0] = client_request(0,0), drop();client_request(0,0), change_operation()
-#failures[0,1] = shuttle(0,1),drop_result_stmt()
+#failures[0,0] = client_request(0,1), sleep(5000);forwarded_request(0,1), change_operation()
+#failures[0,0] = client_request(0,1), crash()
+failures[0,1] = checkpoint(1), drop();wedge_request(0), truncate_history()
+#failures[0,1] = checkpoint(1), drop();client_request(0,4), change_operation()
 #failures[0,0] = client_request(0,2), change_operation()
 #failures[0,1] = forwarded_request(1,1), change_operation()
 #failures[0,2] = result_shuttle(0,1),change_result(); shuttle(1,1),drop_result_stmt()
