@@ -1,7 +1,7 @@
-# Implementation of Byzantine Chain Replication - Phase 2
+# Implementation of Byzantine Chain Replication - Phase 3
 
 # PLATFORM
-Dist Algo Version = pyDistAlgo 1.0.9
+Dist Algo Version = pyDistAlgo 1.0.
 Python Version= Python 3.6.2 Anaconda, Inc.
 Operating System: Windows, Linux(in VM), OSX
 Types of Hosts: 2 OSX hosts
@@ -25,18 +25,19 @@ Log files are generated post execution as follows:
 
 
 # WORKLOAD GENERATION
-
-For pseudorandom client workload generation, we, used a pre-defined list of operations and selecting requested number of operrations randomly from these fixed set of operations.
+For pseudorandom client workload generation, we used a pre-defined list of operations and are selecting the requested number of operations randomly from these fixed set of operations.
 
 
 # BUGS and LIMITATIONS
-Forward request failures not thoroughly tested
-Supports only for T=1; for T=2 we are observing a "message too big exception" that needs to be looked into.
+Intermittent issues with checkpotinting when multiple clients are served
 
 
 # CONTRIBUTIONS
-Sai Madan Mohan Reddy Patlolla: Replica, Olympus, Critical debugging and fixing issues while development
-Sri Krishna Jayadev Peddibhotla: Client, ParentProcess, Logging, Digital Signature Mechanisms
+Sai Madan Mohan Reddy Patlolla: 
+>Handling functionalities of Replica, Olympus, checkpointing, catch up, failure triggers and failures
+
+Sri Krishna Jayadev Peddibhotla:
+>Handling functionalities of Client, ParentProcess, Digital Signature, Reconfiguration, testing and debugging. 
 
 
 # MAIN FILES
@@ -49,9 +50,12 @@ mergescript.py
 
 
 # CODE SIZE
+-------------------------------------------------------------------------------
 Language                     files          blank        comment           code
 -------------------------------------------------------------------------------
-DAL                              1            171              4           1095
+DAL                              1            603              4           2589
+-------------------------------------------------------------------------------
+
 
 # LANGUAGE FEATURE USAGE
 await()
@@ -63,7 +67,9 @@ timeout()
 config() - various params
 lists
 dicts
+nacl.signing.*
+logger
 
 
 # OTHER COMMENTS
-Due to submission time constraints we could only do a breif readme, excuse us if we had missed out on some detailed explaination where expected. 
+NA

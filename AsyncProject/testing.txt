@@ -1,0 +1,151 @@
+# Testing details
+
+Test-1
+-------
+Description:
+	On receipt of 1st request message directly from client 0, and in next outgoing shuttle message after the first message, replica-0 uses get('x') as the operation in its order statement and result statement, regardless of what the operation should be.
+	
+	>workload[0] = put('jedi','luke skywalker); get('jedi'); get('jedi'); put('movie','star'); append('movie',' wars'); get('movie')	
+	>failures[0,0] = client_request(0,1), change_operation
+
+Test file: 
+	failure_change_operation.txt
+
+Test-2
+------
+Description: 
+	On receipt of 1st checkpoint message at Replica-1, it drops the incoming message that triggered this failure.
+
+	>workload[0] = put('jedi','luke skywalker); get('jedi'); append('jedi',' ultimate'); get('jedi');   put('movie','star'); 
+	append('jedi',' edition');append('movie',' wars'); get('movie'); get('jedi')
+	>failures[0,1] = checkpoint(1), drop()
+
+Test file:
+	failure_checkpointing.txt
+
+
+Test-3
+------
+Description:
+	On receipt of 1st request message directly from client 0, replica 0 immediately crashes by calling os._exit(-1) after flushing the logs to the disk.
+
+	>workload[0] = put('jedi','luke skywalker); get('jedi'); append('jedi',' ultimate'); get('jedi');   put('movie','star'); append('movie',' wars'); get('movie')
+	>failures[0,0] = client_request(0,1), crash()
+
+Test file: 
+	failure_crash.txt
+
+
+
+
+Test-4
+------ 
+Description:
+	On receipt of 1st shuttle message for a request by client 1, replica 2 in its next outgoing result message omits the head's result statement from the result proof.
+
+	>workload[0] = put('jedi','luke skywalker); slice('jedi','0:4'); get('jedi'); get('jedi')
+	>workload[1] = put('movie','star'); append('movie',' wars'); get('movie'); append('movie',' 2'); get('movie')
+	>failures[0,2] = shuttle(1,1),drop_result_stmt()
+
+Test file: 
+	failure_drop_result_statement_at_tail_replica.txt
+
+
+
+
+Test-5
+------
+Description:
+	On receipt of 0th request message directly from client 0, the headd replica 0 immediately applies the operation put('a','a') to its running state before processing the message that triggered the failure and then n receipt of 0th request message directly from client 0, in the next outgoing shuttle message, this replica 0 uses get('x') as the operation in its order statement and result statement, regardless of what the operation should be.
+
+	>workload[0] = put('jedi','luke skywalker); get('jedi'); get('jedi'); get('jedi'); get('jedi')
+	>failures[0,0] = client_request(0,0), extra_op();client_request(0,0), change_operation()
+
+Test file: 
+	failure_extraop.txt
+
+
+
+
+Test-6
+------
+Description:
+	On receipt of 1st request message directly from client 0, replica 0 sleeps for the specified time, in milliseconds and then on the 1st forwarded request message containing a request from client 0, the head replica 0 uses get('x') as the operation in its order statement and result statement, regardless of what the operation should be, in the next outgoing shuttle message.
+
+	>workload[0] = put('jedi','luke skywalker); get('jedi'); get('jedi'); get('jedi'); get('jedi')
+	>failures[0,0] = client_request(0,1), sleep(5000);forwarded_request(0,1), change_operation()
+
+Test file: 
+	failure_forwarded_request.txt
+
+
+
+
+Test-7
+------
+Description:
+	On receipt of 1st request message directly from client 0, the head replica which is replica 0 immediately increments the variable in which it stores the slot number to assign to the next request before processing the message that triggered the failure.
+
+	>workload[0] = put('jedi','luke skywalker); get('jedi'); append('jedi',' ultimate'); get('jedi');   put('movie','star'); append('movie',' wars'); get('movie')
+	>failures[0,0] = client_request(0,1), increment_slot()
+
+Test file: 
+	failure_increment_slot.txt
+
+
+
+
+Test-8
+------
+Description:
+	On receipt of 1st request message directly from client 0, in the next outgoing shuttle message, replica 0, the head,  puts an invalid signature on its order statement.
+
+	>workload[0] = put('jedi','luke skywalker); get('jedi'); append('jedi',' ultimate'); get('jedi');   put('movie','star'); append('movie',' wars'); get('movie')
+	>failures[0,0] = client_request(0,1), invalid_order_sig()
+
+Test file: 
+	failure_invalid_order_signature.txt
+
+
+
+
+Test-9
+------
+Description:
+	On receipt of 1st request message directly from client 0, the tail replica, which is replica 2, puts an invalid signature on its result statement in the next outgoing result message to a client.
+
+	>workload[0] = put('jedi','luke skywalker); get('jedi'); append('jedi',' ultimate'); get('jedi');   put('movie','star'); append('movie',' wars'); get('movie')
+	>failures[0,2] = client_request(0,1), invalid_result_sig()
+
+Test file: 
+	failure_invalid_result_signature.txt
+
+
+
+
+Test-10
+-------
+Description:
+	On receipt of 1st request message directly from client 0 during configuration 0, the replica 0 puts an invalid signature on its result statement in the next outgoing shuttle message and then after re-configuration, in configuration 1, on receipt of 2nd request message directly from client 0, in the next outgoing shuttle message, replica 2 uses get('x') as the operation in its order statement and result statement, regardless of what the operation should be.
+
+	>workload[0] = put('jedi','luke skywalker); get('jedi'); append('jedi',' ultimate'); get('jedi');   put('movie','star'); append('movie',' wars'); get('movie')
+	>failures[0,0] = client_request(0,1), invalid_result_sig()
+	>failures[1,1] = client_request(0,2), change_operation()
+
+Test file: 
+	failure_multiple_configurations.txt
+
+
+
+
+Test-11
+-------
+Description:
+	On receipt of 2nd shuttle message for a request by client 0, replica 0 drops the incoming message that triggered this failure.
+
+	>workload[0] = put('jedi','luke skywalker); get('jedi')
+	>workload[1] = put('movie','star'); append('movie',' wars'); get('movie'); append('movie',' 2'); get('movie')
+	>failures[0,0] = shuttle(0,2),drop()
+
+Test file: 
+	failure_shuttle_drop.txt
