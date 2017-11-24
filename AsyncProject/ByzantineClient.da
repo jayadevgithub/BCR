@@ -128,7 +128,7 @@ class Client(process):
         #output(str(client_id) + 'is successfully registered yoo ')
 
     def receive(msg=('last_served_request',result_shuttle), from_=olympus):
-        logger.info("received: 'last_served_request' shuttle FROM Olympus WITH result:%s and last_served_request_id:%s ,actual_id:%s",str(result_shuttle.get_result()),str(result_shuttle.get_request_id()),str(self.request_id))
+        logger.info("received: 'last_served_request' shuttle FROM Olympus WITH result:%s and last_served_request_id:%s ,actual_id:%s",str(result_shuttle.get_result()),str(self.request_id),str(result_shuttle.get_request_id()))
         if result_shuttle.get_result() is not None and result_shuttle.get_request_id() == self.request_id :
             #print("tyrion lannister")
             #count  = get_count_valid_result_proofs(result_shuttle)
@@ -285,7 +285,7 @@ class Client(process):
         logger.info("sent: 'parent_verify' to parent_process")
         #print("client_timeout "+str(client_timeout))
         if await(self.switch == 2):
-            logger.info("handle_operation:operation:%s completed done by the client:%s", str(
+            logger.info("[{handle_operation:operation:%s}] completed done by the client:%s", str(
                 operation), str(client_id))
 
             if self.temp_count < self.operation_count:
@@ -320,13 +320,17 @@ class Client(process):
     def run():
         register_client_and_get_active_configuration_from_olympus()
 
-        logger.info("Performing operations")
         self.operations = getWorkLoad()
         self.operation_count = len(operations)
         self.operation_iter = get_operation()
         #print("***workload client_id="+str(client_id)+" operations "+str(operations) +" operations len: "+str(len(operations)))
         current_time = time.time()
         await(self.received_active_config_at_client == 1)
+
+        logger.info("Performing operations WITH replicas "+str(replica_set))
+        logger.info("head_replica is  replicas "+str(head_replica))
+        logger.info("tail_replica is  replicas "+str(tail_replica))
+
         handle_operation()
         #print("before time "+str(current_time) +" len(operations) "+str(len(operations))+" client_id "+str(client_id)
         #todo time elapsed
@@ -461,8 +465,9 @@ def get_config_info(config_file_name):
 def main():
     # config_file_name = 'failure_change_operation.txt'
     #config_file_name = 'failure_drop_result_statement_at_tail_replica.txt'
-    # config_file_name = 'failure_change_operation.txt'
-    # config_file_name = 'failure_change_operation.txt'
+    #config_file_name = 'failure_increment_slot.txt'
+    config_file_name = "failure_crash.txt"
+    #config_file_name = 'failure_shuttle_drop.txt'
     # config_file_name = 'failure_change_operation.txt'
     # config_file_name = 'failure_change_operation.txt'
     # config_file_name = 'failure_change_operation.txt'

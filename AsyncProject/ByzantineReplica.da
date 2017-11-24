@@ -781,7 +781,7 @@ class Replica(process):
 
 
         if next_slot_number is not None and next_slot_number != current_slot_number :
-            logger.error("perform_operation: slot_number mismatch  expected_slot:%s actual slot:%s calling reconfig provable case of misbehaviour detected for client_id:%s,request_id:%s,replica_id:%s ",str(next_slot_number),str(current_slot_number),str(client_id), str(request_id), str(replica_id))
+            logger.error("perform_operation: slot_number mismatch  expected_slot:%s actual slot:%s calling reconfig provable case of misbehaviour detected for client_id:%s,request_id:%s,replica_id:%s ",str(current_slot_number),str(next_slot_number),str(client_id), str(request_id), str(replica_id))
 
             send(('reconfigure_request',replica_id), to=olympus)
             return
