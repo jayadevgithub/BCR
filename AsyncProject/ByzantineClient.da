@@ -290,7 +290,6 @@ class Client(process):
 
             if self.temp_count < self.operation_count:
                 handle_operation()
-
             #self.request_id = self.request_id + 1
             #output(" got the iddd for client_id "+str(client_id)+" for request_id "+str(request_id) + " gs "+str(global_seq_id) )
         elif timeout(self.client_timeout):
@@ -461,7 +460,7 @@ def get_config_info(config_file_name):
 
 def main():
     # config_file_name = 'failure_change_operation.txt'
-    config_file_name = 'failure_change_result_at_tail_replica.txt'
+    #config_file_name = 'failure_drop_result_statement_at_tail_replica.txt'
     # config_file_name = 'failure_change_operation.txt'
     # config_file_name = 'failure_change_operation.txt'
     # config_file_name = 'failure_change_operation.txt'

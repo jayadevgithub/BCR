@@ -351,12 +351,15 @@ class Replica(process):
             return replica_set[replica_id - 1]
 
     def validate_result_shuttle(result_shuttle, client_id, request_id, replica_id):
-        logger.info("validating result shuttle for client_id:%s,request_id:%s,replica_id:%s",str(client_id),str(request_id),str(replica_id))
+        logger.info("validate_result_shuttle:validating result shuttle for client_id:%s,request_id:%s,replica_id:%s",str(client_id),str(request_id),str(replica_id))
         curr_order_proof = result_shuttle.get_order_proof_from_shuttle()
         #result_proofs = result_shuttle.get_result_proofs_from_shuttle()
         count_of_result_proofs = result_shuttle.get_count_of_result_proofs_in_shuttle()
         #output("len(result_proofs):, "+str(len(result_proofs)) +" client_id "+str(client_id)+" request_id "+str(request_id) +" replica_id "+str(replica_id))
         #output("len(replica_set): "+str(len(replica_set)) +" client_id "+str(client_id)+" request_id "+str(request_id) +" replica_id "+str(replica_id))
+
+        logger.info("validate_result_shuttle: count_of_result_proofs "+str(count_of_result_proofs)+" len(replica_set): "+str(len(replica_set)) +" client_id "+str(client_id)+" request_id "+str(request_id) +" replica_id "+str(replica_id))
+
         if count_of_result_proofs != len(replica_set):
             send(('reconfigure_request',replica_id), to=olympus)
             logger.error("calling reconfig provable case of misbehaviour detected for client_id:%s,request_id:%s,replica_id:%s result proofs are invalid-count",
@@ -520,7 +523,9 @@ class Replica(process):
 
         self.pending_drop_result_stmts = self.pending_drop_result_stmts - 1
         #drop_result_proof_trigger = True
+        logger.warning("drop_result_statement_of_head_replica_failure: before dropping result_shuttle count_of_result_proofs "+str(result_shuttle.get_count_of_result_proofs_in_shuttle()))
         result_shuttle.drop_result_proof_from_shuttle(head_replica_id)
+        logger.warning("drop_result_statement_of_head_replica_failure: after dropping result_shuttle count_of_result_proofs "+str(result_shuttle.get_count_of_result_proofs_in_shuttle()))
 
     def receive(msg=('wedged_request',wedge_request_id),from_=olympus):
         logger.info("wedged_request:inside wedged_request at "+str(replica_id))
@@ -1024,10 +1029,8 @@ class Replica(process):
                     if self.replica_state == self.Immutable:
                         return                  
 
-                    cloned_result_shuttle = copy.deepcopy(result_shuttle)
-                    send(('cache_result_shuttle', client_id, request_id,
-                          retransmit_id, cloned_result_shuttle, result), to=self)
-
+                    #cloned_result_shuttle = copy.deepcopy(result_shuttle)
+  
                     if self.pending_change_results > 0:
                         self.pending_change_result_failure_at_tail_replica = True 
                         change_result_in_result_shuttle_failure(client_id,request_id,result_shuttle)
@@ -1036,6 +1039,8 @@ class Replica(process):
                         self.pending_drop_result_stmts_failure_at_tail_replica = True
                         drop_result_statement_of_head_replica_failure(client_id,request_id,result_shuttle)
 
+
+                    send(('cache_result_shuttle', client_id, request_id,retransmit_id, result_shuttle, result), to=self)
 
                     #testing retransmit case when the request is processed but result didnot reach client
                     #and client got timedout cached result will be sent directly, requests wont be sent 

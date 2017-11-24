@@ -337,7 +337,7 @@ class Olympus(process):
                     logger.info("get_valid_quorum_of_replicas:inside comparing"+str(max_order_proof_replica_index)+" with  replica_index "+str(replica_index)+" with catchup length"+str(catchup_length))
 
                     if catchup_length > 0:
-                        for slot_id in range(curr_order_proofs_size,max_count_of_slots+1):
+                        for slot_id in range(curr_order_proofs_size+1,max_count_of_slots+1):
                             max_order_proof = max_wedged_statement.get_order_proof_at_slot(slot_id)
                             catchup_order_stmt = max_order_proof.get_order_statement_of_replica(max_order_proof_replica_index)
                             catchup_stmt = CatchupStatement(catchup_order_stmt)
