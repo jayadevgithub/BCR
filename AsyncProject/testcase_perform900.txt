@@ -1,5 +1,5 @@
 # performance test: 3 clients each send 300 pseudorandom operations.  2017-11-12
-test_case_name = perform900
+test_case_name = testcase_perform900
 
 # expected outcome: 
 # no crashes, exceptions, etc.  
