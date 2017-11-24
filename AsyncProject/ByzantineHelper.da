@@ -90,6 +90,8 @@ class CaughtUpMessage():
         self.replica_id = replica_id
         self.last_served_request_for_a_client = {}
         self.running_state = None
+        self.hash_of_running_state = None
+        self.signed_hash_of_running_state = None
 
     def add_running_state(self,running_state,private_key):
         self.running_state = running_state

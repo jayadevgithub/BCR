@@ -1189,6 +1189,8 @@ class Replica(process):
 
                 if self.pending_drop_stmts > 0:
                     drop_failure("get_running_state",running_state_id)
+                    empty_running_state = {}
+                    send(('running_state_from_replica',replica_id,empty_running_state),to = olympus)
                     return
 
                 if self.pending_crash_stmts > 0:
@@ -1230,6 +1232,8 @@ class Replica(process):
 
                 if self.pending_drop_stmts > 0:
                     drop_failure("catchup_message",catchup_msg_identifier)
+                    caughtup_message = CaughtUpMessage(-1)
+                    send(('caughtup_message',replica_id,caughtup_message),to = olympus)
                     return
 
                 if self.pending_crash_stmts > 0:

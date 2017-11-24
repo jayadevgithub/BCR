@@ -1189,6 +1189,8 @@ class Replica(process):
 
                 if self.pending_drop_stmts > 0:
                     drop_failure("get_running_state",running_state_id)
+                    empty_running_state = {}
+                    send(('running_state_from_replica',replica_id,empty_running_state),to = olympus)
                     return
 
                 if self.pending_crash_stmts > 0:
@@ -1230,6 +1232,8 @@ class Replica(process):
 
                 if self.pending_drop_stmts > 0:
                     drop_failure("catchup_message",catchup_msg_identifier)
+                    caughtup_message = CaughtUpMessage(-1)
+                    send(('caughtup_message',replica_id,caughtup_message),to = olympus)
                     return
 
                 if self.pending_crash_stmts > 0:
@@ -1541,6 +1545,8 @@ class CaughtUpMessage():
         self.replica_id = replica_id
         self.last_served_request_for_a_client = {}
         self.running_state = None
+        self.hash_of_running_state = None
+        self.signed_hash_of_running_state = None
 
     def add_running_state(self,running_state,private_key):
         self.running_state = running_state
@@ -2413,7 +2419,7 @@ class Olympus(process):
                             if compare_signed_messages(replica_signed_hash_of_running_state,consistent_signed_hash_of_running_state) is True:
                                 valid_running_state = replica_running_state
                                 break
-                            running_state_id = running_state_id + 1
+                            #running_state_id = running_state_id + 1
                         if valid_running_state is None:
                             logger.info("running_states are not consistent,need to do abort the system")
                         else:
@@ -3038,9 +3044,12 @@ def main():
     # config_file_name = 'failure_change_operation.txt'
     #config_file_name = 'failure_drop_result_statement_at_tail_replica.txt'
     #config_file_name = 'failure_increment_slot.txt'
-    config_file_name = "failure_crash.txt"
+    #config_file_name = "failure_crash.txt"
     #config_file_name = 'failure_shuttle_drop.txt'
-    # config_file_name = 'failure_change_operation.txt'
+    #config_file_name = 'failure_running_state.txt'
+    #config_file_name = 'failure_catchup_message.txt'
+    config_file_name = 'failure_shuttle_drop.txt'
+    
     # config_file_name = 'failure_change_operation.txt'
     # config_file_name = 'failure_change_operation.txt'
     # config_file_name = 'failure_change_operation.txt'

@@ -1,14 +1,13 @@
 
-
 # test case name.  can be used to trigger test case specific code in client,
 # e.g., to generate special request sequences or validate intermediate or
 # final values of object state. [2017-09-12: added this item]
-test_case_name = failure_shuttle_drop
+test_case_name = test1
 
 # number of failures to tolerate.  number of replicas is 2t+1.
-t = 2
+t = 1
 # number of clients
-num_client = 2
+num_client = 1
 # client timeout, in milliseconds.  if timer expires, resend request 
 # to all replicas, as described in section 3.3.
 client_timeout = 3000
@@ -31,8 +30,12 @@ client_hosts = 1; 0; 0
 replica_hosts = 0; 1; 2
 
 # CLIENT WORKLOAD
-workload[0] = put('jedi','luke skywalker); get('jedi')
-workload[1] = put('movie','star'); append('movie',' wars'); get('movie'); append('movie',' 2'); get('movie')
+
+workload[0] = put('jedi','luke skywalker); get('jedi'); append('jedi',' ultimate'); get('jedi');   put('movie','star'); append('jedi',' edition'); append('movie',' wars'); get('movie'); get('jedi'); append('jedi',' 2'); get('jedi')
+workload[1] = put('movie','star'); append('movie',' wars'); get('movie')
+workload[2] = pseudorandom(833,10)
+workload[3] = put('movie','star'); append('movie',' wars'); get('movie')
+
 
 # FAILURE SCENARIO
 # failures(c,r) is the failure scenario for replica r in configuration c.
@@ -40,4 +43,5 @@ workload[1] = put('movie','star'); append('movie',' wars'); get('movie'); append
 # position in the chain, starting from 0.  replicas without a specified
 # failure scenario are failure-free.
 
-failures[0,0] = shuttle(0,2),drop()
+failures[0,0] = client_request(0,1), change_operation()
+failures[0,1] = catch_up(0), drop()

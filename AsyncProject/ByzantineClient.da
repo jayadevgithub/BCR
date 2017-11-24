@@ -466,9 +466,12 @@ def main():
     # config_file_name = 'failure_change_operation.txt'
     #config_file_name = 'failure_drop_result_statement_at_tail_replica.txt'
     #config_file_name = 'failure_increment_slot.txt'
-    config_file_name = "failure_crash.txt"
+    #config_file_name = "failure_crash.txt"
     #config_file_name = 'failure_shuttle_drop.txt'
-    # config_file_name = 'failure_change_operation.txt'
+    #config_file_name = 'failure_running_state.txt'
+    #config_file_name = 'failure_catchup_message.txt'
+    config_file_name = 'failure_shuttle_drop.txt'
+    
     # config_file_name = 'failure_change_operation.txt'
     # config_file_name = 'failure_change_operation.txt'
     # config_file_name = 'failure_change_operation.txt'

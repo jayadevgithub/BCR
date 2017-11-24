@@ -434,7 +434,7 @@ class Olympus(process):
                             if compare_signed_messages(replica_signed_hash_of_running_state,consistent_signed_hash_of_running_state) is True:
                                 valid_running_state = replica_running_state
                                 break
-                            running_state_id = running_state_id + 1
+                            #running_state_id = running_state_id + 1
                         if valid_running_state is None:
                             logger.info("running_states are not consistent,need to do abort the system")
                         else:
