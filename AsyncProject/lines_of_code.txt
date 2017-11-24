@@ -1,0 +1,11 @@
+sais-MacBook-Pro:AsyncProject sai$ cloc BCR.da 
+       1 text file.
+       1 unique file.                              
+       0 files ignored.
+
+github.com/AlDanial/cloc v 1.74  T=0.03 s (36.3 files/s, 116070.6 lines/s)
+-------------------------------------------------------------------------------
+Language                     files          blank        comment           code
+-------------------------------------------------------------------------------
+DAL                              1            603              4           2589
+-------------------------------------------------------------------------------

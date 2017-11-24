@@ -32,9 +32,6 @@ replica_hosts = 0; 1; 2
 # CLIENT WORKLOAD
 
 workload[0] = put('jedi','luke skywalker); get('jedi'); append('jedi',' ultimate'); get('jedi');   put('movie','star'); append('movie',' wars'); get('movie')
-workload[1] = put('movie','star'); append('movie',' wars'); get('movie')
-workload[2] = pseudorandom(833,10)
-workload[3] = put('movie','star'); append('movie',' wars'); get('movie')
 
 
 # FAILURE SCENARIO

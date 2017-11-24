@@ -151,7 +151,7 @@ class Replica(process):
         get_failure_workload()
         self.checkpointing_interval = get_check_pointing_interval("checkpt_interval")
         if self.checkpointing_interval is None:
-            self.checkpointing_interval = -1
+            self.checkpointing_interval = 999
         
         self.logger = logging.getLogger("Replica " + str(replica_id))
         self.logger.setLevel(logging.INFO)
@@ -203,8 +203,8 @@ class Replica(process):
             if sodium_memcmp(hash_digest, new_digest):
                 return True
             else:
-                print("decode_hash_and_verify-failed: original "+str(hash_digest))
-                print("decode_hash_and_verify-failed: unsigned hash"+str(new_digest))
+                logger.log("decode_hash_and_verify-failed: original "+str(hash_digest))
+                logger.log("decode_hash_and_verify-failed: unsigned hash"+str(new_digest))
 
                 return False
         except:
@@ -428,7 +428,7 @@ class Replica(process):
         # validation of ordered proofs
 
     def change_operation_failure(client_request,client_id,request_id):
-        output("changing operation for client_id" + str(client_id) +" request_id " + str(request_id) + " replica_id " + str(replica_id))
+        logger.info("changing operation for client_id" + str(client_id) +" request_id " + str(request_id) + " replica_id " + str(replica_id))
         self.pending_change_operations = self.pending_change_operations - 1
         operation_dict = {}
         operation_dict["operation"] = "get"
@@ -653,16 +653,17 @@ class Replica(process):
             return True
 
     def receive(msg=('initiate_checkpointing',checkpoint_proof,checkpoint_identifier),from_ = prev_replica):
+        await((self.current_slot_number) % checkpointing_interval == 0)
+        logger.info("initiate_checkpointing:performing checkpoining checkpoint_identifier "+str(checkpoint_identifier)+" at replica_id "+str(replica_id))
         if checkpoint_identifier != self.checkpoint_id:
             send(('reconfigure_request',replica_id), to=olympus)
-            logger.error("initiate_checkpointing:calling reconfig provable case of misbehaviour detected for checkpoint_identifier:%s,replica_id:%s checkpoint_identifier is invalid",
+            logger.error("initiate_checkpointing:calling reconfig provable case of misbehaviour detected for expected checkpoint_id:%s,actual_checkpoint_identifier:%s,replica_id:%s checkpoint_identifier is invalid",str(self.checkpoint_id),
                          str(checkpoint_identifier),str(replica_id))
             return
 
-        await((self.current_slot_number) % checkpointing_interval == 0)
-        logger.info("initiate_checkpointing:performing checkpoining checkpoint_identifier "+str(checkpoint_identifier))
+        
         checkpoint_failures = get_pending_failures_if_exists(None, checkpoint_identifier, "checkpoint")
-        logger.info("initiate_checkpointing:performing checkpoining checkpoint_identifier "+str(checkpoint_identifier)+" after getting pending failures")
+        #logger.info("initiate_checkpointing:performing checkpoining checkpoint_identifier "+str(checkpoint_identifier)+" after getting pending failures")
         for checkpoint_failure in checkpoint_failures:
             if checkpoint_failure is not None:
                 logger.info("Trigger Exists: in  replica=%s, trigger_name=checkpoint with checkpoint_id=%s, failure_to_be_executed=%s", str(
@@ -686,16 +687,16 @@ class Replica(process):
                 if self.pending_sleep_statements > 0:
                     sleep_failure()
 
-        logger.info("initiate_checkpointing:performing checkpoining checkpoint_identifier "+str(checkpoint_identifier)+" after processing pending failures")
+        #logger.info("initiate_checkpointing:performing checkpoining checkpoint_identifier "+str(checkpoint_identifier)+" after processing pending failures")
         hash_of_running_state,signed_hash_of_running_state = get_checkpoint_proof(checkpoint_identifier,checkpointing_interval)
         checkpoint_proof.add_to_check_point_proof(hash_of_running_state,signed_hash_of_running_state,replica_id)
         next_replica = get_next_replica()
 
-        logger.info("initiate_checkpointing:performing checkpoining checkpoint_identifier "+str(checkpoint_identifier)+" ready to send to next replica")
+        #logger.info("initiate_checkpointing:performing checkpoining checkpoint_identifier "+str(checkpoint_identifier)+" ready to send to next replica")
 
-        if self.is_head_replica is False: 
-            if validate_check_point_proofs(checkpoint_proof,checkpoint_identifier) is False:
-                logger.error("initiate_checkpointing:checkpoint validation failed, need to call reconfig provable case of misbehaviour detected at replica_id:%s ,checkpoint_identifier:%s", str(replica_id),str(checkpoint_identifier))
+        # if self.is_head_replica is False: 
+        #     if validate_check_point_proofs(checkpoint_proof,checkpoint_identifier) is False:
+        #         logger.error("initiate_checkpointing:checkpoint validation failed, need to call reconfig provable case of misbehaviour detected at replica_id:%s ,checkpoint_identifier:%s", str(replica_id),str(checkpoint_identifier))
 
         self.checkpoint_id = self.checkpoint_id + 1
         if self.is_tail_replica is False:
@@ -745,7 +746,7 @@ class Replica(process):
 
     #def receive(msg=('perform_operation', client_id, request_id, operation, client_process, prev_order_statement, result, result_shuttle, retransmitted, retransmit_id)):
     def receive(msg=('perform_operation', client_request, result, result_shuttle,next_slot_number),from_=valid_process):
-        print("\n\n next_slot_number from:"+str(next_slot_number) + " current_slot_number "+str(self.current_slot_number)+" at replica_id "+str(replica_id))
+        logger.info("\n\n next_slot_number from:"+str(next_slot_number) + " current_slot_number "+str(self.current_slot_number)+" at replica_id "+str(replica_id))
         client_id = client_request.get_client_id()
         request_id = client_request.get_request_id()
         operation = client_request.get_operation()

@@ -3,12 +3,36 @@ import sys
 #open('BCR.da', 'w').close()
 #subprocess.check_output(['ls','-l']) #all that is technically needed...
 distalgo_compiler_path = "/Users/sai/Downloads/pyDistAlgo-1.0.11/bin/dar"
-#config_file_name = "failure_change_operation.txt"
-#config_file_name = "failure_increment_slot.txt"
-#config_file_name = "failure_drop_result_statement_at_tail_replica.txt"
-#config_file_name = "failure_shuttle_drop.txt"
-config_file_name = "failure_crash.txt"
 
+#config_file_name = "failure_catchup_message.txt"
+
+#config_file_name = "failure_change_operation.txt"
+
+#config_file_name =  "failure_checkpointing.txt"
+
+#config_file_name = "failure_crash.txt"
+
+#config_file_name = "failure_drop_result_statement_at_tail_replica.txt"
+
+#config_file_name = "failure_drop_undetected.txt"
+
+#config_file_name = "failure_extraop.txt"
+
+#config_file_name = "failure_forwarded_request.txt"
+
+#config_file_name = "failure_increment_slot.txt"
+
+#config_file_name = "failure_invalid_order_signature.txt"
+
+#config_file_name = "failure_invalid_result_signature.txt"
+
+#config_file_name = "failure_multiple_configurations.txt"
+
+#config_file_name = "failure_shuttle_drop.txt"
+
+#config_file_name = "testcase_checkpointing.txt"
+
+config_file_name = "testcase_perform900.txt"
 
 def get_config_info(config_file_name):
     config = {}
