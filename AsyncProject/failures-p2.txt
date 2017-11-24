@@ -27,6 +27,3 @@ drop_result_stmt(): in the next outgoing result message (to a client) or result 
 [2017-10-22 In case of change_result or drop_result_stmt failures at the tail, the tail sends the tampered result proofs to both the client and the previous replica.]
 
 
-
-failures[0,0] = client_request(2,1), change_operation()
-failures[1,2] = result_shuttle(0,1),drop_result_stmt(); shuttle(1,3),change_result()

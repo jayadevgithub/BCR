@@ -10,13 +10,13 @@ t = 1
 num_client = 1
 # client timeout, in milliseconds.  if timer expires, resend request 
 # to all replicas, as described in section 3.3.
-client_timeout = 3
+client_timeout = 3000
 # timeout, in milliseconds, for head and non-head servers, respectively:
 # if timer expires, send reconfiguration request to Olympus, as described 
 # in section 3.3.
-head_timeout = 100
-nonhead_timeout = 100
-checkpt_interval = 100
+head_timeout = 3000
+nonhead_timeout = 3000
+checkpt_interval = 2
 # MAPPING OF PROCESSES TO HOSTS
 # to simplify changing the hosts, we first specify a semicolon-separated
 # list of hosts, and then use 0-based indices into that list to specify the

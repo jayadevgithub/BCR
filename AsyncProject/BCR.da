@@ -781,7 +781,7 @@ class Replica(process):
 
 
         if next_slot_number is not None and next_slot_number != current_slot_number :
-            logger.error("perform_operation: slot_number mismatch  expected_slot:%s actual slot:%s calling reconfig provable case of misbehaviour detected for client_id:%s,request_id:%s,replica_id:%s ",str(next_slot_number),str(current_slot_number),str(client_id), str(request_id), str(replica_id))
+            logger.error("perform_operation: slot_number mismatch  expected_slot:%s actual slot:%s calling reconfig provable case of misbehaviour detected for client_id:%s,request_id:%s,replica_id:%s ",str(current_slot_number),str(next_slot_number),str(client_id), str(request_id), str(replica_id))
 
             send(('reconfigure_request',replica_id), to=olympus)
             return
@@ -2286,6 +2286,7 @@ class Olympus(process):
                 logger.info("get_valid_quorum_of_replicas:inside comparing"+str(max_order_proof_replica_index)+" with  replica_index "+str(replica_index)+" in the range of slots "+str(slot_id_to_start_from)+" to "+str(curr_order_proofs_size) +" actual slot cache is "+str(wedged_statements[replica_index].get_history_from_wedged_statement().get_slots()))
 
                 for slot_id in range(slot_id_to_start_from,curr_order_proofs_size):
+                    logger.info("get_valid_quorum_of_replicas:checking at slot_id "+str(slot_id))
                     curr_order_proof = current_wedged_statement.get_order_proof_at_slot(slot_id)
                     if curr_order_proof is None:
                         logger.info("get_valid_quorum_of_replicas:no order proof in replica_id "+str(replica_index)+" at slot_id "+str(slot_id))
@@ -2315,8 +2316,10 @@ class Olympus(process):
                     catchup_message = CatchupMessage()
                     logger.info("get_valid_quorum_of_replicas:inside comparing"+str(max_order_proof_replica_index)+" with  replica_index "+str(replica_index)+" with catchup length"+str(catchup_length))
 
+                    logger.info("get_valid_quorum_of_replicas:get_order_proof_at_slot "+str(max_wedged_statement.get_history_from_wedged_statement().get_slots()))
                     if catchup_length > 0:
                         for slot_id in range(curr_order_proofs_size+1,max_count_of_slots+1):
+                            logger.info("get_valid_quorum_of_replicas:get_order_proof_at_slot "+str(slot_id))                            
                             max_order_proof = max_wedged_statement.get_order_proof_at_slot(slot_id)
                             catchup_order_stmt = max_order_proof.get_order_statement_of_replica(max_order_proof_replica_index)
                             catchup_stmt = CatchupStatement(catchup_order_stmt)
@@ -2328,6 +2331,16 @@ class Olympus(process):
 
         return (valid_quorum_of_replicas,catchup_messages)
 
+    def check_ordering_of_slots(max_wedged_statement_slots):
+        prev_slot = None
+        for i in range(0,len(max_wedged_statement_slots)):
+            if prev_slot is None:
+                prev_slot = max_wedged_statement_slots[i]
+            elif prev_slot + 1 != max_wedged_statement_slots[i]:
+                return False
+            else:
+                prev_slot = max_wedged_statement_slots[i]
+        return True
 
     def find_quorum_of_replicas():
         #print("find_quorum_of_replicas:called "+str(len(self.wedged_statements)) +" T "+str(T))
@@ -2351,7 +2364,12 @@ class Olympus(process):
                     logger.error("find_quorum_of_replicas:Quorum of T+1 valid replicas doesnot exist")
                     break
 
-                
+                max_wedged_statement_slots = wedged_statements[max_order_proof_replica_index].get_history_from_wedged_statement().get_slots()
+                if check_ordering_of_slots(max_wedged_statement_slots) is False:
+                    del self.wedged_statements[max_order_proof_replica_index]
+                    faulty_replica_indices.append(max_order_proof_replica_index)
+                    continue
+                    
                 quorums_of_replicas =  get_combinations(max_order_proof_replica_index)
                 logger.info("find_quorum_of_replicas: getting combinations max_order_proof replica index "+str(max_order_proof_replica_index)+" quorums_of_replicas "+str(quorums_of_replicas))
                 for i in range(0,len(quorums_of_replicas)):
@@ -2437,7 +2455,7 @@ class Olympus(process):
         wedge_request_id = 0
         send(('wedged_request',wedge_request_id), to=replica_set.values())
         # we may need to change the condition if crash failure is encountered
-        #time.sleep(1)
+        time.sleep(1)
         await(self.count_of_wedged_statements > self.T)
         find_quorum_of_replicas()
 
@@ -2682,7 +2700,7 @@ class Client(process):
         #output(str(client_id) + 'is successfully registered yoo ')
 
     def receive(msg=('last_served_request',result_shuttle), from_=olympus):
-        logger.info("received: 'last_served_request' shuttle FROM Olympus WITH result:%s and last_served_request_id:%s ,actual_id:%s",str(result_shuttle.get_result()),str(result_shuttle.get_request_id()),str(self.request_id))
+        logger.info("received: 'last_served_request' shuttle FROM Olympus WITH result:%s and last_served_request_id:%s ,actual_id:%s",str(result_shuttle.get_result()),str(self.request_id),str(result_shuttle.get_request_id()))
         if result_shuttle.get_result() is not None and result_shuttle.get_request_id() == self.request_id :
             #print("tyrion lannister")
             #count  = get_count_valid_result_proofs(result_shuttle)
@@ -2839,7 +2857,7 @@ class Client(process):
         logger.info("sent: 'parent_verify' to parent_process")
         #print("client_timeout "+str(client_timeout))
         if await(self.switch == 2):
-            logger.info("handle_operation:operation:%s completed done by the client:%s", str(
+            logger.info("[{handle_operation:operation:%s}] completed done by the client:%s", str(
                 operation), str(client_id))
 
             if self.temp_count < self.operation_count:
@@ -2874,13 +2892,17 @@ class Client(process):
     def run():
         register_client_and_get_active_configuration_from_olympus()
 
-        logger.info("Performing operations")
         self.operations = getWorkLoad()
         self.operation_count = len(operations)
         self.operation_iter = get_operation()
         #print("***workload client_id="+str(client_id)+" operations "+str(operations) +" operations len: "+str(len(operations)))
         current_time = time.time()
         await(self.received_active_config_at_client == 1)
+
+        logger.info("Performing operations WITH replicas "+str(replica_set))
+        logger.info("head_replica is  replicas "+str(head_replica))
+        logger.info("tail_replica is  replicas "+str(tail_replica))
+
         handle_operation()
         #print("before time "+str(current_time) +" len(operations) "+str(len(operations))+" client_id "+str(client_id)
         #todo time elapsed
@@ -3014,9 +3036,10 @@ def get_config_info(config_file_name):
 
 def main():
     # config_file_name = 'failure_change_operation.txt'
-    config_file_name = 'failure_change_result_at_tail_replica.txt'
-    # config_file_name = 'failure_change_operation.txt'
-    # config_file_name = 'failure_change_operation.txt'
+    #config_file_name = 'failure_drop_result_statement_at_tail_replica.txt'
+    #config_file_name = 'failure_increment_slot.txt'
+    config_file_name = "failure_crash.txt"
+    #config_file_name = 'failure_shuttle_drop.txt'
     # config_file_name = 'failure_change_operation.txt'
     # config_file_name = 'failure_change_operation.txt'
     # config_file_name = 'failure_change_operation.txt'

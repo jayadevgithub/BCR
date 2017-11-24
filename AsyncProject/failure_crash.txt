@@ -10,12 +10,12 @@ t = 1
 num_client = 1
 # client timeout, in milliseconds.  if timer expires, resend request 
 # to all replicas, as described in section 3.3.
-client_timeout = 3
+client_timeout = 3000
 # timeout, in milliseconds, for head and non-head servers, respectively:
 # if timer expires, send reconfiguration request to Olympus, as described 
 # in section 3.3.
-head_timeout = 100
-nonhead_timeout = 100
+head_timeout = 3000
+nonhead_timeout = 3000
 checkpt_interval = 2
 # MAPPING OF PROCESSES TO HOSTS
 # to simplify changing the hosts, we first specify a semicolon-separated
@@ -43,10 +43,4 @@ workload[3] = put('movie','star'); append('movie',' wars'); get('movie')
 # position in the chain, starting from 0.  replicas without a specified
 # failure scenario are failure-free.
 
-#failures[0,0] = client_request(0,1), sleep(5000);forwarded_request(0,1), change_operation()
 failures[0,0] = client_request(0,1), crash()
-#failures[0,1] = shuttle(0,1),drop_result_stmt()
-#failures[0,0] = client_request(0,2), change_operation()
-#failures[0,1] = forwarded_request(1,1), change_operation()
-#failures[0,2] = result_shuttle(0,1),change_result(); shuttle(1,1),drop_result_stmt()
-#failures[0,0] = forwarded_request(0,1), change_operation()
