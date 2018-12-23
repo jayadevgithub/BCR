@@ -32,7 +32,13 @@ distalgo_compiler_path = "/Users/sai/Downloads/pyDistAlgo-1.0.11/bin/dar"
 
 #config_file_name = "testcase_checkpointing.txt"
 
-config_file_name = "testcase_perform900.txt"
+#config_file_name = "testcase_perform900.txt"
+
+#config_file_name = "testcase_head_change_op.txt"
+
+config_file_name = "testcase_tail_double_fail.txt"
+
+
 
 def get_config_info(config_file_name):
     config = {}

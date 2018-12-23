@@ -1,5 +1,5 @@
 # change_op failure at head on client's first request
-test_case_name = head_change_op
+test_case_name = testcase_head_change_op
 
 # expected outcome:
 # change of operation by head is detected by other replicas comparing operation in shuttle with operation in client request.

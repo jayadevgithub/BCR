@@ -1,0 +1,62 @@
+2017-11-24 00:00:12,038 - Client 0 - INFO -  register_client_and_get_active_configuration_from_olympus: 
+2017-11-24 00:00:12,040 - Client 0 - INFO - sent: 'register_client_at_olympus' WITH client_id=0 TO Olympus
+2017-11-24 00:00:12,048 - Client 0 - INFO - received: 'client_registered_at_olympus' FROM Olympus
+2017-11-24 00:00:12,048 - Client 0 - INFO - client_id=0 is successfully registered
+2017-11-24 00:00:12,048 - Client 0 - INFO - client_id=0 registered at Olympus
+2017-11-24 00:00:12,048 - Client 0 - INFO -  get_active_configuration_from_olympus: 
+2017-11-24 00:00:12,049 - Client 0 - INFO - sent: 'get_current_active_configuration_from_olympus' TO Olympus
+2017-11-24 00:00:12,049 - Client 0 - INFO - workload=put('movie','star'); get('movie'); append('movie',' wars')
+2017-11-24 00:00:12,050 - Client 0 - INFO - received: 'received_active_configuration_at_client' FROM Olympus
+2017-11-24 00:00:12,050 - Client 0 - INFO - Performing operations WITH replicas {0: <Replica:cd403>, 1: <Replica:cd404>, 2: <Replica:cd405>}
+2017-11-24 00:00:12,050 - Client 0 - INFO - head_replica is  replicas <Replica:cd403>
+2017-11-24 00:00:12,051 - Client 0 - INFO - tail_replica is  replicas <Replica:cd405>
+2017-11-24 00:00:12,054 - Client 0 - INFO - received: 'parent_performed_operation' FROM parent_process
+2017-11-24 00:00:12,054 - Client 0 - INFO - sent: 'perform_operation' WITH client_id=0, request_id=0,operation={'operation': 'put', 'key': 'movie', 'value': 'star'} TO head_replica
+2017-11-24 00:00:12,055 - Client 0 - INFO - sent: 'parent_verify' to parent_process
+2017-11-24 00:00:12,070 - Client 0 - INFO - received: 'result_shuttle' FROM replica:2 for request_id:0 WITH result=Success
+2017-11-24 00:00:12,070 - Client 0 - INFO - is_verified_result: client_id:0,request_id:0 
+2017-11-24 00:00:12,070 - Client 0 - INFO - validating 'result_shuttle' FROM replica:2 for request_id:0 WITH result=Success
+2017-11-24 00:00:12,071 - Client 0 - INFO - processing the result and result_shuttle at client_id:0,for request_id:0 
+2017-11-24 00:00:12,072 - Client 0 - INFO - received: 'parent_sent_result'
+2017-11-24 00:00:12,073 - Client 0 - INFO - inside 'get_count_valid_result_proofs'
+2017-11-24 00:00:12,074 - Client 0 - INFO - seq=0, result_from_parent_process='Success', result='Success; ,result_proof_match_count=3,actual_count=3
+2017-11-24 00:00:12,075 - Client 0 - INFO - verified result for client_id:0,request_id:0 
+2017-11-24 00:00:12,075 - Client 0 - INFO - verified_the_result 'Success' at client_id 0 request_id is 0
+2017-11-24 00:00:12,075 - Client 0 - INFO - sending next op
+2017-11-24 00:00:12,076 - Client 0 - INFO - [{handle_operation:operation:{'operation': 'put', 'key': 'movie', 'value': 'star'}}] completed done by the client:0
+2017-11-24 00:00:12,078 - Client 0 - INFO - received: 'parent_performed_operation' FROM parent_process
+2017-11-24 00:00:12,078 - Client 0 - INFO - sent: 'perform_operation' WITH client_id=0, request_id=1,operation={'operation': 'get', 'key': 'movie'} TO head_replica
+2017-11-24 00:00:12,078 - Client 0 - INFO - sent: 'parent_verify' to parent_process
+2017-11-24 00:00:12,097 - Client 0 - INFO - received: 'result_shuttle' FROM replica:2 for request_id:1 WITH result=star
+2017-11-24 00:00:12,097 - Client 0 - INFO - is_verified_result: client_id:0,request_id:1 
+2017-11-24 00:00:12,097 - Client 0 - INFO - validating 'result_shuttle' FROM replica:2 for request_id:1 WITH result=star
+2017-11-24 00:00:12,098 - Client 0 - INFO - processing the result and result_shuttle at client_id:0,for request_id:1 
+2017-11-24 00:00:12,099 - Client 0 - INFO - received: 'parent_sent_result'
+2017-11-24 00:00:12,100 - Client 0 - INFO - inside 'get_count_valid_result_proofs'
+2017-11-24 00:00:12,101 - Client 0 - INFO - seq=1, result_from_parent_process='star', result='star; ,result_proof_match_count=1,actual_count=3
+2017-11-24 00:00:12,101 - Client 0 - ERROR - need to call reconfig provable case of misbehaviour detected for client_id:0,request_id:1 result proofs are invalid
+2017-11-24 00:00:13,185 - Client 0 - INFO - received: 'last_served_request' shuttle FROM Olympus WITH result:star and last_served_request_id:1 ,actual_id:1
+2017-11-24 00:00:13,185 - Client 0 - INFO - processing the result and result_shuttle at client_id:0,for request_id:1 
+2017-11-24 00:00:13,186 - Client 0 - INFO - received: 'parent_sent_result'
+2017-11-24 00:00:13,187 - Client 0 - INFO - inside 'get_count_valid_result_proofs'
+2017-11-24 00:00:13,188 - Client 0 - INFO - seq=1, result_from_parent_process='star', result='star; ,result_proof_match_count=2,actual_count=3
+2017-11-24 00:00:13,188 - Client 0 - INFO - verified result for client_id:0,request_id:1 
+2017-11-24 00:00:13,188 - Client 0 - INFO -  get_active_configuration_from_olympus: 
+2017-11-24 00:00:13,188 - Client 0 - INFO - sent: 'get_current_active_configuration_from_olympus' TO Olympus
+2017-11-24 00:00:13,190 - Client 0 - INFO - received: 'received_active_configuration_at_client' FROM Olympus
+2017-11-24 00:00:13,190 - Client 0 - INFO - last_served_request:done received_active_config_at_client after reconfiguration
+2017-11-24 00:00:13,192 - Client 0 - INFO - received: 'parent_performed_operation' FROM parent_process
+2017-11-24 00:00:13,192 - Client 0 - INFO - sent: 'perform_operation' WITH client_id=0, request_id=2,operation={'operation': 'append', 'key': 'movie', 'value': ' wars'} TO head_replica
+2017-11-24 00:00:13,193 - Client 0 - INFO - sent: 'parent_verify' to parent_process
+2017-11-24 00:00:13,212 - Client 0 - INFO - received: 'result_shuttle' FROM replica:2 for request_id:2 WITH result=Success
+2017-11-24 00:00:13,212 - Client 0 - INFO - is_verified_result: client_id:0,request_id:2 
+2017-11-24 00:00:13,213 - Client 0 - INFO - validating 'result_shuttle' FROM replica:2 for request_id:2 WITH result=Success
+2017-11-24 00:00:13,213 - Client 0 - INFO - processing the result and result_shuttle at client_id:0,for request_id:2 
+2017-11-24 00:00:13,216 - Client 0 - INFO - received: 'parent_sent_result'
+2017-11-24 00:00:13,216 - Client 0 - INFO - inside 'get_count_valid_result_proofs'
+2017-11-24 00:00:13,219 - Client 0 - INFO - seq=2, result_from_parent_process='Success', result='Success; ,result_proof_match_count=3,actual_count=3
+2017-11-24 00:00:13,219 - Client 0 - INFO - verified result for client_id:0,request_id:2 
+2017-11-24 00:00:13,219 - Client 0 - INFO - verified_the_result 'Success' at client_id 0 request_id is 2
+2017-11-24 00:00:13,219 - Client 0 - INFO - sending next op
+2017-11-24 00:00:13,220 - Client 0 - INFO - [{handle_operation:operation:{'operation': 'append', 'key': 'movie', 'value': ' wars'}}] completed done by the client:0
+2017-11-24 00:00:13,220 - Client 0 - INFO - [{handle_operation:operation:{'operation': 'get', 'key': 'movie'}}] completed done by the client:0

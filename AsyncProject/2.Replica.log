@@ -1,0 +1,242 @@
+2017-11-24 00:00:11,985 - Replica 0 - INFO -  for replica_id 0 :-> 
+[]
+
+2017-11-24 00:00:11,986 - Replica 0 - INFO - replica_Set {0: <Replica:cd403>, 1: <Replica:cd404>, 2: <Replica:cd405>}
+2017-11-24 00:00:11,988 - Replica 1 - INFO -  for replica_id 1 :-> 
+[]
+
+2017-11-24 00:00:11,988 - Replica 1 - INFO - replica_Set {0: <Replica:cd403>, 1: <Replica:cd404>, 2: <Replica:cd405>}
+2017-11-24 00:00:11,991 - Replica 2 - INFO -  for replica_id 2 :-> 
+[{'trigger_name': 'shuttle', 'client_id': '0', 'message_id': '1', 'failure_name': 'change_result', 'failure_param': None}, {'trigger_name': 'shuttle', 'client_id': '0', 'message_id': '1', 'failure_name': 'drop_result_stmt', 'failure_param': None}]
+
+2017-11-24 00:00:11,991 - Replica 2 - INFO - replica_Set {0: <Replica:cd403>, 1: <Replica:cd404>, 2: <Replica:cd405>}
+2017-11-24 00:00:12,019 - Replica 0 - INFO - received: 'store_keys' from Olympus
+2017-11-24 00:00:12,020 - Replica 0 - INFO - sent: 'KeysFound' to self
+2017-11-24 00:00:12,020 - Replica 1 - INFO - received: 'store_keys' from Olympus
+2017-11-24 00:00:12,021 - Replica 1 - INFO - sent: 'KeysFound' to self
+2017-11-24 00:00:12,022 - Replica 2 - INFO - received: 'store_keys' from Olympus
+2017-11-24 00:00:12,022 - Replica 2 - INFO - sent: 'KeysFound' to self
+2017-11-24 00:00:12,042 - Replica 1 - INFO - received: 'add_client_at_replica' with client_id:0 at replica:1 FROM Olympus
+2017-11-24 00:00:12,042 - Replica 0 - INFO - received: 'add_client_at_replica' with client_id:0 at replica:0 FROM Olympus
+2017-11-24 00:00:12,043 - Replica 2 - INFO - received: 'add_client_at_replica' with client_id:0 at replica:2 FROM Olympus
+2017-11-24 00:00:12,044 - Replica 1 - INFO - sent: 'client_registered_at_replica'- client_id=0,at replica:1 TO Olympus
+2017-11-24 00:00:12,044 - Replica 0 - INFO - sent: 'client_registered_at_replica'- client_id=0,at replica:0 TO Olympus
+2017-11-24 00:00:12,045 - Replica 2 - INFO - sent: 'client_registered_at_replica'- client_id=0,at replica:2 TO Olympus
+2017-11-24 00:00:12,056 - Replica 0 - INFO - 
+
+ next_slot_number from:None current_slot_number 0 at replica_id 0
+2017-11-24 00:00:12,056 - Replica 0 - INFO - received: 'perform_operation' with retransmit_id=0 , client_id=0, request_id=0, operation={'operation': 'put', 'key': 'movie', 'value': 'star'} ,current_slot_number=0 received from <Client:cd403>
+2017-11-24 00:00:12,057 - Replica 0 - INFO - is_registered_client: client_id=0 is registered at replica_id=0
+2017-11-24 00:00:12,057 - Replica 0 - INFO - replica_id=0 is processing operation={'operation': 'put', 'key': 'movie', 'value': 'star'} requested by client_id=0
+2017-11-24 00:00:12,057 - Replica 0 - INFO - checking_for_triggers: in replica_id=0, with client_id=0, request_id=0,trigger_name=client_request
+2017-11-24 00:00:12,057 - Replica 0 - INFO - checking_for_triggers: in replica_id=0, with client_id=0, request_id=0,trigger_name=shuttle
+2017-11-24 00:00:12,057 - Replica 0 - INFO - replica_id=0 is processing operations
+2017-11-24 00:00:12,058 - Replica 0 - INFO - last_served_request_for_a_client: replica_id:0,request_id:0
+2017-11-24 00:00:12,058 - Replica 0 - INFO - getting next replica:1,len_of_replica_set:3
+2017-11-24 00:00:12,060 - Replica 0 - INFO - sent: 'perform_operation' TO next_replica=1, at head_replica with client_id=0, request_id=0, operation={'operation': 'put', 'key': 'movie', 'value': 'star'}, sending to <Replica:cd404>
+2017-11-24 00:00:12,060 - Replica 1 - INFO - 
+
+ next_slot_number from:0 current_slot_number 0 at replica_id 1
+2017-11-24 00:00:12,061 - Replica 1 - INFO - received: 'perform_operation' with retransmit_id=0 , client_id=0, request_id=0, operation={'operation': 'put', 'key': 'movie', 'value': 'star'} ,current_slot_number=0 received from <Replica:cd403>
+2017-11-24 00:00:12,061 - Replica 1 - INFO - is_registered_client: client_id=0 is registered at replica_id=1
+2017-11-24 00:00:12,061 - Replica 1 - INFO - replica_id=1 is processing operation={'operation': 'put', 'key': 'movie', 'value': 'star'} requested by client_id=0
+2017-11-24 00:00:12,062 - Replica 1 - INFO - checking_for_triggers: in replica_id=1, with client_id=0, request_id=0,trigger_name=client_request
+2017-11-24 00:00:12,062 - Replica 1 - INFO - checking_for_triggers: in replica_id=1, with client_id=0, request_id=0,trigger_name=shuttle
+2017-11-24 00:00:12,062 - Replica 1 - INFO - replica_id=1 is processing operations
+2017-11-24 00:00:12,063 - Replica 1 - INFO - last_served_request_for_a_client: replica_id:1,request_id:0
+2017-11-24 00:00:12,063 - Replica 1 - INFO - getting next replica:2,len_of_replica_set:3
+2017-11-24 00:00:12,064 - Replica 1 - INFO - sent: 'perform_operation' TO next_replica=2, with client_id=0, request_id=0, operation={'operation': 'put', 'key': 'movie', 'value': 'star'},, sending to <Replica:cd405>
+2017-11-24 00:00:12,065 - Replica 2 - INFO - 
+
+ next_slot_number from:0 current_slot_number 0 at replica_id 2
+2017-11-24 00:00:12,065 - Replica 2 - INFO - received: 'perform_operation' with retransmit_id=0 , client_id=0, request_id=0, operation={'operation': 'put', 'key': 'movie', 'value': 'star'} ,current_slot_number=0 received from <Replica:cd404>
+2017-11-24 00:00:12,066 - Replica 2 - INFO - is_registered_client: client_id=0 is registered at replica_id=2
+2017-11-24 00:00:12,066 - Replica 2 - INFO - replica_id=2 is processing operation={'operation': 'put', 'key': 'movie', 'value': 'star'} requested by client_id=0
+2017-11-24 00:00:12,066 - Replica 2 - INFO - checking_for_triggers: in replica_id=2, with client_id=0, request_id=0,trigger_name=client_request
+2017-11-24 00:00:12,066 - Replica 2 - INFO - checking_for_triggers: in replica_id=2, with client_id=0, request_id=0,trigger_name=shuttle
+2017-11-24 00:00:12,067 - Replica 2 - INFO - replica_id=2 is processing operations
+2017-11-24 00:00:12,067 - Replica 2 - INFO - last_served_request_for_a_client: replica_id:2,request_id:0
+2017-11-24 00:00:12,069 - Replica 2 - INFO - sent: 'result_shuttle' TO client_id=0 with result:Success, replica_id:2,request_id:0
+2017-11-24 00:00:12,070 - Replica 2 - INFO - sent: 'cache_result_shuttle' TO replica_id=2, with client_id=0, request_id=0 and result_shuttle
+2017-11-24 00:00:12,071 - Replica 2 - INFO - received: 'cache_result_shuttle' with client_id=0, request_id=0,  at replica=2 result_shuttle and result=Success
+2017-11-24 00:00:12,071 - Replica 2 - INFO - validate_result_shuttle:validating result shuttle for client_id:0,request_id:0,replica_id:2
+2017-11-24 00:00:12,072 - Replica 2 - INFO - validate_result_shuttle: count_of_result_proofs 3 len(replica_set): 3 client_id 0 request_id 0 replica_id 2
+2017-11-24 00:00:12,074 - Replica 2 - INFO - result validation successful
+2017-11-24 00:00:12,074 - Replica 2 - INFO - checking_for_triggers: in replica_id=2, with client_id=0, request_id=0,trigger_name=result_shuttle
+2017-11-24 00:00:12,075 - Replica 2 - INFO - getting prev replica:1,len_of_replica_set:3
+2017-11-24 00:00:12,076 - Replica 2 - INFO - sent: 'cache_result_shuttle' with client_id=0, request_id=0, result=Success TO previous replica_id=1
+2017-11-24 00:00:12,077 - Replica 1 - INFO - received: 'cache_result_shuttle' with client_id=0, request_id=0,  at replica=1 result_shuttle and result=Success
+2017-11-24 00:00:12,078 - Replica 1 - INFO - validate_result_shuttle:validating result shuttle for client_id:0,request_id:0,replica_id:1
+2017-11-24 00:00:12,078 - Replica 1 - INFO - validate_result_shuttle: count_of_result_proofs 3 len(replica_set): 3 client_id 0 request_id 0 replica_id 1
+2017-11-24 00:00:12,079 - Replica 0 - INFO - 
+
+ next_slot_number from:None current_slot_number 1 at replica_id 0
+2017-11-24 00:00:12,079 - Replica 0 - INFO - received: 'perform_operation' with retransmit_id=0 , client_id=0, request_id=1, operation={'operation': 'get', 'key': 'movie'} ,current_slot_number=1 received from <Client:cd403>
+2017-11-24 00:00:12,079 - Replica 0 - INFO - is_registered_client: client_id=0 is registered at replica_id=0
+2017-11-24 00:00:12,080 - Replica 0 - INFO - replica_id=0 is processing operation={'operation': 'get', 'key': 'movie'} requested by client_id=0
+2017-11-24 00:00:12,080 - Replica 0 - INFO - checking_for_triggers: in replica_id=0, with client_id=0, request_id=1,trigger_name=client_request
+2017-11-24 00:00:12,080 - Replica 0 - INFO - checking_for_triggers: in replica_id=0, with client_id=0, request_id=1,trigger_name=shuttle
+2017-11-24 00:00:12,080 - Replica 0 - INFO - replica_id=0 is processing operations
+2017-11-24 00:00:12,081 - Replica 0 - INFO - last_served_request_for_a_client: replica_id:0,request_id:1
+2017-11-24 00:00:12,081 - Replica 0 - INFO - getting next replica:1,len_of_replica_set:3
+2017-11-24 00:00:12,081 - Replica 1 - INFO - result validation successful
+2017-11-24 00:00:12,081 - Replica 1 - INFO - checking_for_triggers: in replica_id=1, with client_id=0, request_id=0,trigger_name=result_shuttle
+2017-11-24 00:00:12,081 - Replica 1 - INFO - getting prev replica:0,len_of_replica_set:3
+2017-11-24 00:00:12,082 - Replica 0 - INFO - sent: 'perform_operation' TO next_replica=1, at head_replica with client_id=0, request_id=1, operation={'operation': 'get', 'key': 'movie'}, sending to <Replica:cd404>
+2017-11-24 00:00:12,084 - Replica 1 - INFO - sent: 'cache_result_shuttle' with client_id=0, request_id=0, result=Success TO previous replica_id=0
+2017-11-24 00:00:12,084 - Replica 0 - INFO - received: 'cache_result_shuttle' with client_id=0, request_id=0,  at replica=0 result_shuttle and result=Success
+2017-11-24 00:00:12,084 - Replica 1 - INFO - 
+
+ next_slot_number from:1 current_slot_number 1 at replica_id 1
+2017-11-24 00:00:12,086 - Replica 1 - INFO - received: 'perform_operation' with retransmit_id=0 , client_id=0, request_id=1, operation={'operation': 'get', 'key': 'movie'} ,current_slot_number=1 received from <Replica:cd403>
+2017-11-24 00:00:12,086 - Replica 0 - INFO - validate_result_shuttle:validating result shuttle for client_id:0,request_id:0,replica_id:0
+2017-11-24 00:00:12,087 - Replica 0 - INFO - validate_result_shuttle: count_of_result_proofs 3 len(replica_set): 3 client_id 0 request_id 0 replica_id 0
+2017-11-24 00:00:12,087 - Replica 1 - INFO - is_registered_client: client_id=0 is registered at replica_id=1
+2017-11-24 00:00:12,087 - Replica 1 - INFO - replica_id=1 is processing operation={'operation': 'get', 'key': 'movie'} requested by client_id=0
+2017-11-24 00:00:12,087 - Replica 1 - INFO - checking_for_triggers: in replica_id=1, with client_id=0, request_id=1,trigger_name=client_request
+2017-11-24 00:00:12,087 - Replica 1 - INFO - checking_for_triggers: in replica_id=1, with client_id=0, request_id=1,trigger_name=shuttle
+2017-11-24 00:00:12,088 - Replica 1 - INFO - replica_id=1 is processing operations
+2017-11-24 00:00:12,088 - Replica 1 - INFO - last_served_request_for_a_client: replica_id:1,request_id:1
+2017-11-24 00:00:12,089 - Replica 1 - INFO - getting next replica:2,len_of_replica_set:3
+2017-11-24 00:00:12,089 - Replica 0 - INFO - result validation successful
+2017-11-24 00:00:12,089 - Replica 0 - INFO - checking_for_triggers: in replica_id=0, with client_id=0, request_id=0,trigger_name=result_shuttle
+2017-11-24 00:00:12,089 - Replica 1 - INFO - sent: 'perform_operation' TO next_replica=2, with client_id=0, request_id=1, operation={'operation': 'get', 'key': 'movie'},, sending to <Replica:cd405>
+2017-11-24 00:00:12,089 - Replica 0 - INFO - CACHING done for all replicas for request_id=0 FROM client_id=0
+2017-11-24 00:00:12,090 - Replica 2 - INFO - 
+
+ next_slot_number from:1 current_slot_number 1 at replica_id 2
+2017-11-24 00:00:12,090 - Replica 2 - INFO - received: 'perform_operation' with retransmit_id=0 , client_id=0, request_id=1, operation={'operation': 'get', 'key': 'movie'} ,current_slot_number=1 received from <Replica:cd404>
+2017-11-24 00:00:12,091 - Replica 2 - INFO - is_registered_client: client_id=0 is registered at replica_id=2
+2017-11-24 00:00:12,091 - Replica 2 - INFO - replica_id=2 is processing operation={'operation': 'get', 'key': 'movie'} requested by client_id=0
+2017-11-24 00:00:12,091 - Replica 2 - INFO - checking_for_triggers: in replica_id=2, with client_id=0, request_id=1,trigger_name=client_request
+2017-11-24 00:00:12,092 - Replica 2 - INFO - checking_for_triggers: in replica_id=2, with client_id=0, request_id=1,trigger_name=shuttle
+2017-11-24 00:00:12,092 - Replica 2 - INFO - checking_for_triggers: trigger found at replica_id=2, with client_id=0, request_id=1,trigger_name=shuttle at index:0
+2017-11-24 00:00:12,093 - Replica 2 - INFO - checking_for_triggers: trigger found at replica_id=2, with client_id=0, request_id=1,trigger_name=shuttle at index:1
+2017-11-24 00:00:12,093 - Replica 2 - INFO - Trigger Exists:  in  replica=2, trigger_name=shuttle with client_id=0, request_id=1, failure_to_be_executed=change_result
+2017-11-24 00:00:12,093 - Replica 2 - INFO - Trigger Exists:  in  replica=2, trigger_name=shuttle with client_id=0, request_id=1, failure_to_be_executed=drop_result_stmt
+2017-11-24 00:00:12,093 - Replica 2 - INFO - replica_id=2 is processing operations
+2017-11-24 00:00:12,094 - Replica 2 - INFO - last_served_request_for_a_client: replica_id:2,request_id:1
+2017-11-24 00:00:12,094 - Replica 2 - WARNING - changing result to 'OK' message client_id:0,request_id:1,replica_id:2
+2017-11-24 00:00:12,095 - Replica 2 - WARNING - dropping result stmt of head_replica client_id:0,request_id:1,replica_id:2
+2017-11-24 00:00:12,095 - Replica 2 - WARNING - drop_result_statement_of_head_replica_failure: before dropping result_shuttle count_of_result_proofs 3
+2017-11-24 00:00:12,095 - Replica 2 - WARNING - drop_result_statement_of_head_replica_failure: after dropping result_shuttle count_of_result_proofs 2
+2017-11-24 00:00:12,096 - Replica 2 - INFO - sent: 'result_shuttle' TO client_id=0 with result:star, replica_id:2,request_id:1
+2017-11-24 00:00:12,097 - Replica 2 - INFO - sent: 'cache_result_shuttle' TO replica_id=2, with client_id=0, request_id=1 and result_shuttle
+2017-11-24 00:00:12,097 - Replica 2 - INFO - received: 'cache_result_shuttle' with client_id=0, request_id=1,  at replica=2 result_shuttle and result=star
+2017-11-24 00:00:12,098 - Replica 2 - INFO - validate_result_shuttle:validating result shuttle for client_id:0,request_id:1,replica_id:2
+2017-11-24 00:00:12,098 - Replica 2 - INFO - validate_result_shuttle: count_of_result_proofs 2 len(replica_set): 3 client_id 0 request_id 1 replica_id 2
+2017-11-24 00:00:12,099 - Replica 2 - ERROR - calling reconfig provable case of misbehaviour detected for client_id:0,request_id:1,replica_id:2 result proofs are invalid-count
+2017-11-24 00:00:12,099 - Replica 2 - INFO - result validation failed for request_id=1 FROM client_id=0
+2017-11-24 00:00:12,101 - Replica 0 - INFO - wedged_request:inside wedged_request at 0
+2017-11-24 00:00:12,101 - Replica 1 - INFO - wedged_request:inside wedged_request at 1
+2017-11-24 00:00:12,101 - Replica 2 - INFO - wedged_request:inside wedged_request at 2
+2017-11-24 00:00:12,101 - Replica 0 - INFO - checking_for_triggers: in replica_id=0, with client_id=None, request_id=0,trigger_name=wedge_request
+2017-11-24 00:00:12,101 - Replica 1 - INFO - checking_for_triggers: in replica_id=1, with client_id=None, request_id=0,trigger_name=wedge_request
+2017-11-24 00:00:12,101 - Replica 2 - INFO - checking_for_triggers: in replica_id=2, with client_id=None, request_id=0,trigger_name=wedge_request
+2017-11-24 00:00:12,101 - Replica 0 - INFO - wedged_request: received wedged request FROM olympus changing the replica status to Immutable
+2017-11-24 00:00:12,101 - Replica 1 - INFO - wedged_request: received wedged request FROM olympus changing the replica status to Immutable
+2017-11-24 00:00:12,101 - Replica 2 - INFO - wedged_request: received wedged request FROM olympus changing the replica status to Immutable
+2017-11-24 00:00:12,102 - Replica 0 - INFO - wedged_statement_from_replica: sending wedge statement to olympus making itself immutable replica_state:Immutable
+2017-11-24 00:00:12,102 - Replica 1 - INFO - wedged_statement_from_replica: sending wedge statement to olympus making itself immutable replica_state:Immutable
+2017-11-24 00:00:12,102 - Replica 2 - INFO - wedged_statement_from_replica: sending wedge statement to olympus making itself immutable replica_state:Immutable
+2017-11-24 00:00:12,102 - Replica 0 - INFO - wedged_request: completed_checkpoint_id  0 at replica_id 0
+2017-11-24 00:00:12,102 - Replica 0 - WARNING - pre-truncate_history-failure history order_proofs at replica_id :0 is {0: <BCR.OrderProof object at 0x10396d630>, 1: <BCR.OrderProof object at 0x10396d518>}
+2017-11-24 00:00:12,102 - Replica 1 - INFO - wedged_request: completed_checkpoint_id  0 at replica_id 1
+2017-11-24 00:00:12,103 - Replica 1 - WARNING - pre-truncate_history-failure history order_proofs at replica_id :1 is {0: <BCR.OrderProof object at 0x103a21470>, 1: <BCR.OrderProof object at 0x103a21048>}
+2017-11-24 00:00:12,103 - Replica 2 - INFO - wedged_request: completed_checkpoint_id  0 at replica_id 2
+2017-11-24 00:00:12,103 - Replica 2 - WARNING - pre-truncate_history-failure history order_proofs at replica_id :2 is {0: <BCR.OrderProof object at 0x103a1e390>, 1: <BCR.OrderProof object at 0x103a1e550>}
+2017-11-24 00:00:13,110 - Replica 0 - INFO - perform_catchup_to_maximal_order_proof: to replica_id=0
+2017-11-24 00:00:13,110 - Replica 0 - INFO - checking_for_triggers: in replica_id=0, with client_id=None, request_id=0,trigger_name=catch_up
+2017-11-24 00:00:13,111 - Replica 1 - INFO - perform_catchup_to_maximal_order_proof: to replica_id=1
+2017-11-24 00:00:13,111 - Replica 0 - INFO - slot_ids dict_keys([]) replica_id 0 history.slots [0, 1] running_state {'movie': 'star'}
+2017-11-24 00:00:13,111 - Replica 1 - INFO - checking_for_triggers: in replica_id=1, with client_id=None, request_id=0,trigger_name=catch_up
+2017-11-24 00:00:13,111 - Replica 0 - INFO -  replica_id 0 running_state {'movie': 'star'}
+2017-11-24 00:00:13,111 - Replica 1 - INFO - slot_ids dict_keys([]) replica_id 1 history.slots [0, 1] running_state {'movie': 'star'}
+2017-11-24 00:00:13,112 - Replica 1 - INFO -  replica_id 1 running_state {'movie': 'star'}
+2017-11-24 00:00:13,116 - Replica 0 - INFO - get_running_state: from replica_id=0
+2017-11-24 00:00:13,116 - Replica 0 - INFO - checking_for_triggers: in replica_id=0, with client_id=None, request_id=0,trigger_name=get_running_state
+2017-11-24 00:00:13,118 - Replica 1 - INFO - get_running_state: from replica_id=1
+2017-11-24 00:00:13,118 - Replica 1 - INFO - checking_for_triggers: in replica_id=1, with client_id=None, request_id=0,trigger_name=get_running_state
+2017-11-24 00:00:13,161 - Replica 0 - INFO -  for replica_id 0 :-> 
+[]
+
+2017-11-24 00:00:13,161 - Replica 0 - INFO - replica_Set {0: <Replica:cd408>, 1: <Replica:cd407>, 2: <Replica:cd409>}
+2017-11-24 00:00:13,165 - Replica 1 - INFO -  for replica_id 1 :-> 
+[]
+
+2017-11-24 00:00:13,166 - Replica 1 - INFO - replica_Set {0: <Replica:cd408>, 1: <Replica:cd407>, 2: <Replica:cd409>}
+2017-11-24 00:00:13,168 - Replica 2 - INFO -  for replica_id 2 :-> 
+[]
+
+2017-11-24 00:00:13,169 - Replica 2 - INFO - replica_Set {0: <Replica:cd408>, 1: <Replica:cd407>, 2: <Replica:cd409>}
+2017-11-24 00:00:13,173 - Replica 0 - INFO - received: 'store_keys' from Olympus
+2017-11-24 00:00:13,174 - Replica 0 - INFO - sent: 'KeysFound' to self
+2017-11-24 00:00:13,174 - Replica 1 - INFO - received: 'store_keys' from Olympus
+2017-11-24 00:00:13,175 - Replica 1 - INFO - sent: 'KeysFound' to self
+2017-11-24 00:00:13,175 - Replica 2 - INFO - received: 'store_keys' from Olympus
+2017-11-24 00:00:13,176 - Replica 2 - INFO - sent: 'KeysFound' to self
+2017-11-24 00:00:13,176 - Replica 0 - INFO - new_configuration: saving running_state sent by olympus at running_state={'movie': 'star'} replica_id=0
+2017-11-24 00:00:13,177 - Replica 1 - INFO - new_configuration: saving running_state sent by olympus at running_state={'movie': 'star'} replica_id=1
+2017-11-24 00:00:13,178 - Replica 0 - INFO - received: 'add_client_at_replica' with client_id:0 at replica:0 FROM Olympus
+2017-11-24 00:00:13,178 - Replica 2 - INFO - new_configuration: saving running_state sent by olympus at running_state={'movie': 'star'} replica_id=2
+2017-11-24 00:00:13,179 - Replica 1 - INFO - received: 'add_client_at_replica' with client_id:0 at replica:1 FROM Olympus
+2017-11-24 00:00:13,179 - Replica 0 - INFO - sent: 'client_registered_at_replica'- client_id=0,at replica:0 TO Olympus
+2017-11-24 00:00:13,180 - Replica 2 - INFO - received: 'add_client_at_replica' with client_id:0 at replica:2 FROM Olympus
+2017-11-24 00:00:13,180 - Replica 1 - INFO - sent: 'client_registered_at_replica'- client_id=0,at replica:1 TO Olympus
+2017-11-24 00:00:13,181 - Replica 2 - INFO - sent: 'client_registered_at_replica'- client_id=0,at replica:2 TO Olympus
+2017-11-24 00:00:13,194 - Replica 0 - INFO - 
+
+ next_slot_number from:None current_slot_number 0 at replica_id 0
+2017-11-24 00:00:13,195 - Replica 0 - INFO - received: 'perform_operation' with retransmit_id=0 , client_id=0, request_id=2, operation={'operation': 'append', 'key': 'movie', 'value': ' wars'} ,current_slot_number=0 received from <Client:cd403>
+2017-11-24 00:00:13,195 - Replica 0 - INFO - is_registered_client: client_id=0 is registered at replica_id=0
+2017-11-24 00:00:13,195 - Replica 0 - INFO - replica_id=0 is processing operation={'operation': 'append', 'key': 'movie', 'value': ' wars'} requested by client_id=0
+2017-11-24 00:00:13,196 - Replica 0 - INFO - checking_for_triggers: in replica_id=0, with client_id=0, request_id=2,trigger_name=client_request
+2017-11-24 00:00:13,196 - Replica 0 - INFO - checking_for_triggers: in replica_id=0, with client_id=0, request_id=2,trigger_name=shuttle
+2017-11-24 00:00:13,196 - Replica 0 - INFO - replica_id=0 is processing operations
+2017-11-24 00:00:13,197 - Replica 0 - INFO - last_served_request_for_a_client: replica_id:0,request_id:2
+2017-11-24 00:00:13,197 - Replica 0 - INFO - getting next replica:1,len_of_replica_set:3
+2017-11-24 00:00:13,199 - Replica 0 - INFO - sent: 'perform_operation' TO next_replica=1, at head_replica with client_id=0, request_id=2, operation={'operation': 'append', 'key': 'movie', 'value': ' wars'}, sending to <Replica:cd407>
+2017-11-24 00:00:13,200 - Replica 1 - INFO - 
+
+ next_slot_number from:0 current_slot_number 0 at replica_id 1
+2017-11-24 00:00:13,200 - Replica 1 - INFO - received: 'perform_operation' with retransmit_id=0 , client_id=0, request_id=2, operation={'operation': 'append', 'key': 'movie', 'value': ' wars'} ,current_slot_number=0 received from <Replica:cd408>
+2017-11-24 00:00:13,201 - Replica 1 - INFO - is_registered_client: client_id=0 is registered at replica_id=1
+2017-11-24 00:00:13,201 - Replica 1 - INFO - replica_id=1 is processing operation={'operation': 'append', 'key': 'movie', 'value': ' wars'} requested by client_id=0
+2017-11-24 00:00:13,201 - Replica 1 - INFO - checking_for_triggers: in replica_id=1, with client_id=0, request_id=2,trigger_name=client_request
+2017-11-24 00:00:13,201 - Replica 1 - INFO - checking_for_triggers: in replica_id=1, with client_id=0, request_id=2,trigger_name=shuttle
+2017-11-24 00:00:13,202 - Replica 1 - INFO - replica_id=1 is processing operations
+2017-11-24 00:00:13,202 - Replica 1 - INFO - last_served_request_for_a_client: replica_id:1,request_id:2
+2017-11-24 00:00:13,203 - Replica 1 - INFO - getting next replica:2,len_of_replica_set:3
+2017-11-24 00:00:13,204 - Replica 1 - INFO - sent: 'perform_operation' TO next_replica=2, with client_id=0, request_id=2, operation={'operation': 'append', 'key': 'movie', 'value': ' wars'},, sending to <Replica:cd409>
+2017-11-24 00:00:13,205 - Replica 2 - INFO - 
+
+ next_slot_number from:0 current_slot_number 0 at replica_id 2
+2017-11-24 00:00:13,205 - Replica 2 - INFO - received: 'perform_operation' with retransmit_id=0 , client_id=0, request_id=2, operation={'operation': 'append', 'key': 'movie', 'value': ' wars'} ,current_slot_number=0 received from <Replica:cd407>
+2017-11-24 00:00:13,206 - Replica 2 - INFO - is_registered_client: client_id=0 is registered at replica_id=2
+2017-11-24 00:00:13,206 - Replica 2 - INFO - replica_id=2 is processing operation={'operation': 'append', 'key': 'movie', 'value': ' wars'} requested by client_id=0
+2017-11-24 00:00:13,206 - Replica 2 - INFO - checking_for_triggers: in replica_id=2, with client_id=0, request_id=2,trigger_name=client_request
+2017-11-24 00:00:13,207 - Replica 2 - INFO - checking_for_triggers: in replica_id=2, with client_id=0, request_id=2,trigger_name=shuttle
+2017-11-24 00:00:13,207 - Replica 2 - INFO - replica_id=2 is processing operations
+2017-11-24 00:00:13,209 - Replica 2 - INFO - last_served_request_for_a_client: replica_id:2,request_id:2
+2017-11-24 00:00:13,211 - Replica 2 - INFO - sent: 'result_shuttle' TO client_id=0 with result:Success, replica_id:2,request_id:2
+2017-11-24 00:00:13,212 - Replica 2 - INFO - sent: 'cache_result_shuttle' TO replica_id=2, with client_id=0, request_id=2 and result_shuttle
+2017-11-24 00:00:13,213 - Replica 2 - INFO - received: 'cache_result_shuttle' with client_id=0, request_id=2,  at replica=2 result_shuttle and result=Success
+2017-11-24 00:00:13,214 - Replica 2 - INFO - validate_result_shuttle:validating result shuttle for client_id:0,request_id:2,replica_id:2
+2017-11-24 00:00:13,214 - Replica 2 - INFO - validate_result_shuttle: count_of_result_proofs 3 len(replica_set): 3 client_id 0 request_id 2 replica_id 2
+2017-11-24 00:00:13,218 - Replica 2 - INFO - result validation successful
+2017-11-24 00:00:13,218 - Replica 2 - INFO - checking_for_triggers: in replica_id=2, with client_id=0, request_id=2,trigger_name=result_shuttle
+2017-11-24 00:00:13,219 - Replica 2 - INFO - getting prev replica:1,len_of_replica_set:3
+2017-11-24 00:00:13,220 - Replica 2 - INFO - sent: 'cache_result_shuttle' with client_id=0, request_id=2, result=Success TO previous replica_id=1
+2017-11-24 00:00:13,221 - Replica 1 - INFO - received: 'cache_result_shuttle' with client_id=0, request_id=2,  at replica=1 result_shuttle and result=Success
+2017-11-24 00:00:13,222 - Replica 1 - INFO - validate_result_shuttle:validating result shuttle for client_id:0,request_id:2,replica_id:1
+2017-11-24 00:00:13,222 - Replica 1 - INFO - validate_result_shuttle: count_of_result_proofs 3 len(replica_set): 3 client_id 0 request_id 2 replica_id 1
+2017-11-24 00:00:13,224 - Replica 1 - INFO - result validation successful
+2017-11-24 00:00:13,224 - Replica 1 - INFO - checking_for_triggers: in replica_id=1, with client_id=0, request_id=2,trigger_name=result_shuttle
+2017-11-24 00:00:13,224 - Replica 1 - INFO - getting prev replica:0,len_of_replica_set:3
+2017-11-24 00:00:13,226 - Replica 1 - INFO - sent: 'cache_result_shuttle' with client_id=0, request_id=2, result=Success TO previous replica_id=0
+2017-11-24 00:00:13,226 - Replica 0 - INFO - received: 'cache_result_shuttle' with client_id=0, request_id=2,  at replica=0 result_shuttle and result=Success
+2017-11-24 00:00:13,227 - Replica 0 - INFO - validate_result_shuttle:validating result shuttle for client_id:0,request_id:2,replica_id:0
+2017-11-24 00:00:13,227 - Replica 0 - INFO - validate_result_shuttle: count_of_result_proofs 3 len(replica_set): 3 client_id 0 request_id 2 replica_id 0
+2017-11-24 00:00:13,229 - Replica 0 - INFO - result validation successful
+2017-11-24 00:00:13,229 - Replica 0 - INFO - checking_for_triggers: in replica_id=0, with client_id=0, request_id=2,trigger_name=result_shuttle
+2017-11-24 00:00:13,229 - Replica 0 - INFO - CACHING done for all replicas for request_id=2 FROM client_id=0

@@ -1,5 +1,5 @@
 # change_result failure at tail on client's second request
-test_case_name = tail_change_result
+test_case_name = testcase_tail_change_result.txt
 
 # expected outcome:
 # client accepts result of second request, even though one result statement is invalid; client may also send reconfiguration request to olympus (not required in phase 2).  client sends third request.

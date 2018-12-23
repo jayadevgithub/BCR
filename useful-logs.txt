@@ -1,0 +1,15 @@
+checking_for_triggers: in replica_id=0, with client_id=0, request_id=1
+checking_for_triggers: in replica_id=1, with client_id=1, request_id=1
+checking_for_triggers: in replica_id=2, with client_id=0, request_id=1
+checking_for_triggers: in replica_id=2, with client_id=1, request_id=1
+
+received: 'cache_result_shuttle' with client_id=0, request_id=1,  at replica=2
+
+cache_result_shuttle
+
+fw
+checking_for_triggers: in replica_id=0, with client_id=1, request_id=1
+
+CACHING done for all replicas for request_id=0 FROM client_id=0
+
+received: 'cache_result_shuttle' with client_id=0, request_id=0,  at replica=4

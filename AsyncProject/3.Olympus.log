@@ -1,0 +1,56 @@
+2017-11-24 00:00:11,936 - Olympus: - INFO - setup_replicas:creating new replicas
+2017-11-24 00:00:11,993 - Olympus: - INFO - 3 Replicas started
+2017-11-24 00:00:12,011 - Olympus: - INFO - Starting ParentProcess
+2017-11-24 00:00:12,015 - Olympus: - INFO - sent: 'store_keys' TO replica_id=0
+2017-11-24 00:00:12,016 - Olympus: - INFO - sent: 'store_keys' TO replica_id=1
+2017-11-24 00:00:12,019 - Olympus: - INFO - sent: 'store_keys' TO replica_id=2
+2017-11-24 00:00:12,041 - Olympus: - INFO - received: 'register_client_at_olympus' FROM client_id=0
+2017-11-24 00:00:12,041 - Olympus: - INFO - sent: 'add_client_at_replica'-client_id=0, TO all the replicas
+2017-11-24 00:00:12,045 - Olympus: - INFO - client_registered_at_replica: client:0,at the replica:1
+2017-11-24 00:00:12,045 - Olympus: - INFO - client_registered_at_replica: client:0,at the replica:0
+2017-11-24 00:00:12,046 - Olympus: - INFO - client_registered_at_replica: client:0,at the replica:2
+2017-11-24 00:00:12,047 - Olympus: - INFO - sent: 'client_registered_at_olympus' TO client_id=0
+2017-11-24 00:00:12,049 - Olympus: - INFO - received: 'get_current_active_configuration_from_olympus' FROM client_id=<Client:cd403>
+2017-11-24 00:00:12,050 - Olympus: - INFO - sent: 'received_active_configuration_at_client' TO client_id=<Client:cd403>
+2017-11-24 00:00:12,099 - Olympus: - WARNING - reconfigure_request: received reconfig request FROM replica_id=2
+2017-11-24 00:00:12,099 - Olympus: - INFO - wedged_request: sending wedged requests to all the replicas
+2017-11-24 00:00:13,102 - Olympus: - INFO - received: 'wedged_statement_from_replica' FROM replica_id=0
+2017-11-24 00:00:13,103 - Olympus: - INFO - received: 'wedged_statement_from_replica' FROM replica_id=1
+2017-11-24 00:00:13,103 - Olympus: - INFO - received: 'wedged_statement_from_replica' FROM replica_id=2
+2017-11-24 00:00:13,104 - Olympus: - INFO - inside find_quorum_of_replicas
+2017-11-24 00:00:13,104 - Olympus: - INFO - ***checkpoint_terminal_slot_id None
+2017-11-24 00:00:13,104 - Olympus: - INFO - get_maximal_order_proof_replica_index: {0: <BCR.WedgedStatement object at 0x103989e48>, 1: <BCR.WedgedStatement object at 0x103989668>, 2: <BCR.WedgedStatement object at 0x1039899e8>}
+2017-11-24 00:00:13,105 - Olympus: - INFO - returning get_maximal_order_proof_replica_index:
+2017-11-24 00:00:13,105 - Olympus: - INFO - find_quorum_of_replicas: getting combinations max_order_proof replica index 0 quorums_of_replicas [[1], [2]]
+2017-11-24 00:00:13,105 - Olympus: - INFO - get_valid_quorum_of_replicas: T Replicas: [1] max_order_proof_replica_index 0
+2017-11-24 00:00:13,106 - Olympus: - INFO - get_valid_quorum_of_replicas: max  replica_index is  0 with max slots 1 and slot cache is [0, 1]
+2017-11-24 00:00:13,106 - Olympus: - INFO - get_valid_quorum_of_replicas:comparing with replica_index 1
+2017-11-24 00:00:13,106 - Olympus: - INFO - get_valid_quorum_of_replicas:inside comparing0 with  replica_index 1 in the range of slots 0 to 1 actual slot cache is [0, 1]
+2017-11-24 00:00:13,106 - Olympus: - INFO - get_valid_quorum_of_replicas:checking at slot_id 0
+2017-11-24 00:00:13,107 - Olympus: - INFO - get_valid_quorum_of_replicas:inside comparing0 with  replica_index 1 with catchup length0
+2017-11-24 00:00:13,108 - Olympus: - INFO - get_valid_quorum_of_replicas:get_order_proof_at_slot [0, 1]
+2017-11-24 00:00:13,108 - Olympus: - INFO - find_quorum_of_replicas:getting catchup messages from replica_id:0
+2017-11-24 00:00:13,108 - Olympus: - INFO - find_quorum_of_replicas:sending perform_catchup_to_maximal_order_proof
+2017-11-24 00:00:13,109 - Olympus: - INFO - find_quorum_of_replicas:getting catchup messages from replica_id:1
+2017-11-24 00:00:13,109 - Olympus: - INFO - find_quorum_of_replicas:sending perform_catchup_to_maximal_order_proof
+2017-11-24 00:00:13,113 - Olympus: - INFO - validate_runningstate_in_caughtup_messages:
+2017-11-24 00:00:13,113 - Olympus: - INFO - validate_runningstate_in_caughtup_messages: replica_id: 0 hash of running_state b'e901e706a7b72aa0b431bb2a743a2c656dbf5ee7fccf9a5d4c8c81d0a5b70bd5' running_state {'movie': 'star'}
+2017-11-24 00:00:13,113 - Olympus: - INFO - validate_runningstate_in_caughtup_messages: replica_id: 1 hash of running_state b'e901e706a7b72aa0b431bb2a743a2c656dbf5ee7fccf9a5d4c8c81d0a5b70bd5' running_state {'movie': 'star'}
+2017-11-24 00:00:13,114 - Olympus: - INFO - find_quorum_of_replicas:Validation Successful,Quorum of T+1 valid replicas found
+2017-11-24 00:00:13,120 - Olympus: - INFO - performing reconfiguration with valid running_state {'movie': 'star'}
+2017-11-24 00:00:13,120 - Olympus: - INFO - setup_replicas:creating new replicas
+2017-11-24 00:00:13,171 - Olympus: - INFO - 3 Replicas started
+2017-11-24 00:00:13,172 - Olympus: - INFO - sent: 'store_keys' TO replica_id=0
+2017-11-24 00:00:13,173 - Olympus: - INFO - sent: 'store_keys' TO replica_id=1
+2017-11-24 00:00:13,174 - Olympus: - INFO - sent: 'store_keys' TO replica_id=2
+2017-11-24 00:00:13,174 - Olympus: - INFO - sent: new_configuration. with 'running_state' TO replica_id=0
+2017-11-24 00:00:13,175 - Olympus: - INFO - sent: new_configuration. with 'running_state' TO replica_id=1
+2017-11-24 00:00:13,175 - Olympus: - INFO - sent: new_configuration. with 'running_state' TO replica_id=2
+2017-11-24 00:00:13,176 - Olympus: - INFO - sent: 'add_client_at_replica'-client_id=0, TO all the replicas
+2017-11-24 00:00:13,177 - Olympus: - INFO - perform_reconfiguration:clients registration done
+2017-11-24 00:00:13,180 - Olympus: - INFO - client_registered_at_replica: client:0,at the replica:0
+2017-11-24 00:00:13,181 - Olympus: - INFO - client_registered_at_replica: client:0,at the replica:1
+2017-11-24 00:00:13,182 - Olympus: - INFO - client_registered_at_replica: client:0,at the replica:2
+2017-11-24 00:00:13,183 - Olympus: - INFO - perform_reconfiguration:before configuration_status 
+2017-11-24 00:00:13,189 - Olympus: - INFO - received: 'get_current_active_configuration_from_olympus' FROM client_id=<Client:cd403>
+2017-11-24 00:00:13,189 - Olympus: - INFO - sent: 'received_active_configuration_at_client' TO client_id=<Client:cd403>

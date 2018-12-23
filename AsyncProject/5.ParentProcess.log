@@ -1,0 +1,21 @@
+2017-11-24 00:00:12,052 - ParentProcess  - INFO - received: 'parent_perform_operation' FROM client=0, operation={'operation': 'put', 'key': 'movie', 'value': 'star'}
+2017-11-24 00:00:12,052 - ParentProcess  - INFO - ParentProcess is performing the operation={'operation': 'put', 'key': 'movie', 'value': 'star'} 
+2017-11-24 00:00:12,053 - ParentProcess  - INFO - sent: 'parent_performed_operation to client_id:0', operation={'operation': 'put', 'key': 'movie', 'value': 'star'}, result=Success
+2017-11-24 00:00:12,071 - ParentProcess  - INFO - received: 'get_result_from_parent_process' FROM client, global_sequence_id=0
+2017-11-24 00:00:12,072 - ParentProcess  - INFO - presult=Success client_id:0
+2017-11-24 00:00:12,072 - ParentProcess  - INFO - sent: 'parent_sent_result' TO client, with result=Success
+2017-11-24 00:00:12,077 - ParentProcess  - INFO - received: 'parent_perform_operation' FROM client=0, operation={'operation': 'get', 'key': 'movie'}
+2017-11-24 00:00:12,077 - ParentProcess  - INFO - ParentProcess is performing the operation={'operation': 'get', 'key': 'movie'} 
+2017-11-24 00:00:12,077 - ParentProcess  - INFO - sent: 'parent_performed_operation to client_id:0', operation={'operation': 'get', 'key': 'movie'}, result=star
+2017-11-24 00:00:12,098 - ParentProcess  - INFO - received: 'get_result_from_parent_process' FROM client, global_sequence_id=1
+2017-11-24 00:00:12,099 - ParentProcess  - INFO - presult=star client_id:0
+2017-11-24 00:00:12,099 - ParentProcess  - INFO - sent: 'parent_sent_result' TO client, with result=star
+2017-11-24 00:00:13,186 - ParentProcess  - INFO - received: 'get_result_from_parent_process' FROM client, global_sequence_id=1
+2017-11-24 00:00:13,186 - ParentProcess  - INFO - presult=star client_id:0
+2017-11-24 00:00:13,186 - ParentProcess  - INFO - sent: 'parent_sent_result' TO client, with result=star
+2017-11-24 00:00:13,191 - ParentProcess  - INFO - received: 'parent_perform_operation' FROM client=0, operation={'operation': 'append', 'key': 'movie', 'value': ' wars'}
+2017-11-24 00:00:13,191 - ParentProcess  - INFO - ParentProcess is performing the operation={'operation': 'append', 'key': 'movie', 'value': ' wars'} 
+2017-11-24 00:00:13,191 - ParentProcess  - INFO - sent: 'parent_performed_operation to client_id:0', operation={'operation': 'append', 'key': 'movie', 'value': ' wars'}, result=Success
+2017-11-24 00:00:13,214 - ParentProcess  - INFO - received: 'get_result_from_parent_process' FROM client, global_sequence_id=2
+2017-11-24 00:00:13,214 - ParentProcess  - INFO - presult=Success client_id:0
+2017-11-24 00:00:13,215 - ParentProcess  - INFO - sent: 'parent_sent_result' TO client, with result=Success

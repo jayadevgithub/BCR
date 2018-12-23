@@ -2749,7 +2749,7 @@ class Node_(da.NodeProcess):
     _config_object = {'channel': 'reliable', 'clock': 'Lamport', 'handling': 'all'}
 
     def run(self):
-        config_file_name = 'testcase_perform900.txt'
+        config_file_name = 'testcase_tail_double_fail.txt'
         logger = logging.getLogger('Main Module')
         logger.setLevel(logging.INFO)
         handler = logging.FileHandler((str(timestamp) + '_MainModule.log'))
